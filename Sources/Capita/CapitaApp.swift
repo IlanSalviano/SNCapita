@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
     private var floatingPanel: FloatingRecorderPanel?
     private var library: LibraryWindowController?
+    private var settings: SettingsWindowController?
     private let state = AppState()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -32,7 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         floatingPanel = FloatingRecorderPanel(state: state)
         library = LibraryWindowController(state: state)
 
+        settings = SettingsWindowController(state: state)
+
         state.onOpenLibrary = { [weak self] in self?.library?.show() }
+        state.onOpenSettings = { [weak self] in self?.settings?.show() }
 
         state.onRecordingChanged = { [weak self] isRecording in
             self?.menuBar?.updateIcon(isRecording: isRecording)
@@ -47,9 +51,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SmokeTest.run(seconds: seconds, state: state)
         } else if SmokeTest.wantsTranscribe {
             SmokeTest.runTranscribe(state: state)
+        } else if SmokeTest.wantsEngines {
+            SmokeTest.runEngines()
         } else if CommandLine.arguments.contains("--open-library") {
-            // Atalho de diagnóstico: abre a biblioteca sem passar pelo popover.
+            // Atalhos de diagnóstico: abrem as janelas sem passar pelo popover.
             state.openLibrary()
+        } else if CommandLine.arguments.contains("--open-settings") {
+            state.openSettings()
         }
     }
 

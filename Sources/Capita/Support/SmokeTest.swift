@@ -86,6 +86,62 @@ enum SmokeTest {
         }
     }
 
+    /// `Capita --smoke-engines` detecta os motores de IA e testa o escolhido.
+    static var wantsEngines: Bool {
+        CommandLine.arguments.contains("--smoke-engines")
+    }
+
+    static func runEngines() {
+        let engine = IntelligenceEngine()
+        Task { @MainActor in
+            print("▸ Detectando motores de IA\n")
+            await engine.detect()
+
+            for detection in engine.detections {
+                let mark = detection.status.isAvailable ? "✓" : "✗"
+                let active = detection.id == engine.activeProviderID ? "  ← em uso" : ""
+                print("  \(mark) \(detection.name.padding(toLength: 14, withPad: " ", startingAt: 0))"
+                      + " \(detection.status.detail)\(active)")
+            }
+
+            guard engine.activeProviderID != nil else {
+                fail("nenhum motor disponível")
+                return
+            }
+
+            print("\n▸ Testando o motor escolhido")
+            let started = Date()
+            do {
+                let answer = try await engine.complete(
+                    system: """
+                        Você resume reuniões. Responda SOMENTE um objeto JSON com as chaves \
+                        "resumo" (string) e "acoes" (array de strings).
+                        """,
+                    input: """
+                        Ilan: A entrega do backend ficou pronta na terça.
+                        Maria: Ainda faltam dois dias para os testes de integração.
+                        Peter: Vamos adiar o anúncio para sexta então.
+                        """)
+
+                print("  respondeu em \(String(format: "%.1f", Date().timeIntervalSince(started)))s\n")
+                print(answer.unwrappedJSON.split(separator: "\n")
+                    .map { "  \($0)" }.joined(separator: "\n"))
+
+                // O valor de exigir JSON é poder consumi-lo; se não parseia, o motor não
+                // serve para alimentar a interface, por melhor que o texto pareça.
+                if let data = answer.unwrappedJSON.data(using: .utf8),
+                   (try? JSONSerialization.jsonObject(with: data)) != nil {
+                    print("\n✓ JSON válido")
+                } else {
+                    print("\n⚠ a resposta não é JSON válido")
+                }
+                NSApp.terminate(nil)
+            } catch {
+                fail(error.localizedDescription)
+            }
+        }
+    }
+
     static var requestedDuration: TimeInterval? {
         let args = CommandLine.arguments
         guard let index = args.firstIndex(of: "--smoke-record") else { return nil }

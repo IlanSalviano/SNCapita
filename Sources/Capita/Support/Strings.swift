@@ -36,6 +36,16 @@ enum S {
     static var speakerOthers: String { t("speaker.others") }
     static var participants: String { t("speaker.participants") }
 
+    // Motor de IA e ajustes
+    static var noEngineAvailable: String { t("engine.none") }
+    static var settingsTitle: String { t("settings.title") }
+    static var aiEngine: String { t("settings.ai_engine") }
+    static var aiEngineExplanation: String { t("settings.ai_engine_explanation") }
+    static var inUse: String { t("settings.in_use") }
+    static var use: String { t("settings.use") }
+    static var detectAgain: String { t("settings.detect_again") }
+    static var useBestAvailable: String { t("settings.use_best") }
+
     /// Duração no formato mm:ss, usada na lista de gravações.
     static func duration(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())

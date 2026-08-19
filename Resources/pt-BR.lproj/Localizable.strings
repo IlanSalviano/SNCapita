@@ -21,9 +21,19 @@
 "library.not_transcribed" = "Sem transcrição";
 "library.transcription_pending" = "A transcrição começa automaticamente ao fim da gravação.";
 "library.playback_failed" = "Não foi possível reproduzir";
+"engine.none" = "Nenhum motor de IA disponível";
 "speaker.participants" = "Participantes";
 "speaker.you" = "Você";
 "speaker.others" = "Outros";
 
 /* Acessibilidade */
 "a11y.menu_bar_icon" = "Capita — gravador de reuniões";
+
+/* Ajustes */
+"settings.title" = "Ajustes";
+"settings.ai_engine" = "Motor de IA";
+"settings.ai_engine_explanation" = "O Capita usa o melhor motor disponível na sua máquina. Nada é embarcado no app: os sumários usam o Claude Code, se instalado, ou um runtime local como Ollama e LM Studio.";
+"settings.in_use" = "em uso";
+"settings.use" = "Usar";
+"settings.detect_again" = "Detectar novamente";
+"settings.use_best" = "Usar o melhor disponível";

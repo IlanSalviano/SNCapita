@@ -17,6 +17,7 @@ final class AppState {
     var isRecentExpanded = false
 
     let transcription = TranscriptionService()
+    let intelligence = IntelligenceEngine()
 
     /// Notifica a barra de menus para atualizar o ícone. É um callback simples porque o
     /// `MenuBarController` é AppKit e vive fora da árvore SwiftUI.
@@ -131,8 +132,11 @@ final class AppState {
         recordings = RecordingStore.shared.loadAll()
     }
 
+    /// Injetado pelo AppDelegate: a janela é AppKit e vive fora da árvore SwiftUI.
+    var onOpenSettings: (() -> Void)?
+
     func openSettings() {
-        // Fase 2: ajustes, incluindo o download de modelos melhores de transcrição.
+        onOpenSettings?()
     }
 
     func quit() {

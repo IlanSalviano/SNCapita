@@ -21,9 +21,19 @@
 "library.not_transcribed" = "Not transcribed";
 "library.transcription_pending" = "Transcription starts automatically when recording ends.";
 "library.playback_failed" = "Playback failed";
+"engine.none" = "No AI engine available";
 "speaker.participants" = "Participants";
 "speaker.you" = "You";
 "speaker.others" = "Others";
 
 /* Accessibility */
 "a11y.menu_bar_icon" = "Capita — meeting recorder";
+
+/* Ajustes */
+"settings.title" = "Settings";
+"settings.ai_engine" = "AI engine";
+"settings.ai_engine_explanation" = "Capita uses the best engine available on your machine. Nothing is bundled: summaries use Claude Code if installed, or a local runtime such as Ollama or LM Studio.";
+"settings.in_use" = "in use";
+"settings.use" = "Use";
+"settings.detect_again" = "Detect again";
+"settings.use_best" = "Use best available";
