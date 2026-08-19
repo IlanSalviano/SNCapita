@@ -1,0 +1,16 @@
+# Artefatos de build
+.build/
+build/
+vendor/
+
+# Modelo de transcrição: ~514MB, baixado pelo scripts/fetch-model.sh.
+# Vai dentro do .app na distribuição, mas não no repositório.
+Resources/Models/
+
+# macOS
+.DS_Store
+
+# Cabeçalhos do whisper.cpp, instalados por scripts/build-whisper.sh
+Sources/WhisperC/include/whisper.h
+Sources/WhisperC/include/ggml*.h
+Sources/WhisperC/include/gguf.h

@@ -1,0 +1,28 @@
+/* Capita — português do Brasil */
+
+"app.name" = "Capita";
+
+/* Popover da barra de menus */
+"popover.start_recording" = "Iniciar gravação";
+"popover.stop_recording" = "Parar gravação";
+"popover.recent_recordings" = "Gravações recentes";
+"popover.no_recordings" = "Nenhuma gravação ainda";
+
+/* Ações */
+"action.open_library" = "Abrir biblioteca";
+"action.open_settings" = "Ajustes";
+"action.mark_moment" = "Marcar momento importante";
+"action.quit" = "Sair do Capita";
+
+/* Biblioteca e player */
+"library.no_selection" = "Nenhuma gravação selecionada";
+"library.no_selection_hint" = "Escolha uma gravação na lista para ouvir e ler a transcrição.";
+"library.transcribing" = "Transcrevendo…";
+"library.not_transcribed" = "Sem transcrição";
+"library.transcription_pending" = "A transcrição começa automaticamente ao fim da gravação.";
+"library.playback_failed" = "Não foi possível reproduzir";
+"speaker.you" = "Você";
+"speaker.others" = "Outros";
+
+/* Acessibilidade */
+"a11y.menu_bar_icon" = "Capita — gravador de reuniões";

@@ -1,0 +1,28 @@
+/* Capita — English (US) */
+
+"app.name" = "Capita";
+
+/* Menu bar popover */
+"popover.start_recording" = "Start recording";
+"popover.stop_recording" = "Stop recording";
+"popover.recent_recordings" = "Recent recordings";
+"popover.no_recordings" = "No recordings yet";
+
+/* Actions */
+"action.open_library" = "Open library";
+"action.open_settings" = "Settings";
+"action.mark_moment" = "Mark important moment";
+"action.quit" = "Quit Capita";
+
+/* Library and player */
+"library.no_selection" = "No recording selected";
+"library.no_selection_hint" = "Pick a recording from the list to listen and read the transcript.";
+"library.transcribing" = "Transcribing…";
+"library.not_transcribed" = "Not transcribed";
+"library.transcription_pending" = "Transcription starts automatically when recording ends.";
+"library.playback_failed" = "Playback failed";
+"speaker.you" = "You";
+"speaker.others" = "Others";
+
+/* Accessibility */
+"a11y.menu_bar_icon" = "Capita — meeting recorder";
