@@ -24,6 +24,10 @@ final class ProcessTapRecorder {
     /// Observa a troca do dispositivo de saída padrão. Ver `rebuildAfterDeviceChange`.
     private var deviceListener: AudioObjectPropertyListenerBlock?
 
+    /// Observa a taxa de amostragem do dispositivo atual. Ver `observeSampleRateChanges`.
+    private var rateListener: AudioObjectPropertyListenerBlock?
+    private var rateListenerDeviceID = AudioObjectID(kAudioObjectUnknown)
+
     /// Erro ocorrido dentro do IOProc, que roda numa thread de tempo real e não pode
     /// lançar. Consultado pelo `stop()`.
     private let errorLock = NSLock()
@@ -41,6 +45,7 @@ final class ProcessTapRecorder {
 
     func stop() throws {
         removeOutputDeviceObserver()
+        removeSampleRateObserver()
         teardownChain()
         writer = nil
 
@@ -61,12 +66,17 @@ final class ProcessTapRecorder {
         tapID = try Self.createGlobalTap()
         let tapUID = try Self.stringProperty(tapID, kAudioTapPropertyUID, "UID do tap")
 
-        let tapFormat = try Self.tapFormat(tapID)
-        format = tapFormat
-        try existingWriter?.updateSourceFormat(tapFormat)
-
+        // O aggregate vem antes do formato, e a ordem importa: é dele que sai a taxa de
+        // amostragem de verdade. O tap sozinho não sabe em que ritmo o dispositivo está
+        // rodando — ver `captureFormat`.
         aggregateID = try Self.createAggregateDevice(outputUID: output.uid, tapUID: tapUID)
-        return tapFormat
+
+        let captureFormat = try Self.captureFormat(tapID: tapID, deviceID: aggregateID)
+        format = captureFormat
+        try existingWriter?.updateSourceFormat(captureFormat)
+
+        observeSampleRateChanges(of: output.id)
+        return captureFormat
     }
 
     private func teardownChain() {
@@ -114,6 +124,35 @@ final class ProcessTapRecorder {
         AudioObjectRemovePropertyListenerBlock(
             Self.systemObject, &address, DispatchQueue.main, deviceListener)
         self.deviceListener = nil
+    }
+
+    /// Observa a taxa de amostragem do dispositivo de saída durante a gravação.
+    ///
+    /// A troca de dispositivo já era observada; esta é a outra metade do problema, e a
+    /// mais traiçoeira. Um par de AirPods não *muda* quando a chamada começa — continua
+    /// sendo a mesma saída padrão, e o ouvinte de dispositivo não dispara. O que muda é a
+    /// taxa, de 48 kHz para 24 kHz, no instante em que a reunião começa. Sem observar
+    /// isto, uma gravação iniciada antes da chamada vira áudio acelerado no meio.
+    private func observeSampleRateChanges(of deviceID: AudioObjectID) {
+        removeSampleRateObserver()
+
+        var address = Self.address(kAudioDevicePropertyNominalSampleRate)
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.rebuildAfterDeviceChange()
+        }
+        rateListener = listener
+        rateListenerDeviceID = deviceID
+
+        AudioObjectAddPropertyListenerBlock(deviceID, &address, DispatchQueue.main, listener)
+    }
+
+    private func removeSampleRateObserver() {
+        guard let rateListener, rateListenerDeviceID != kAudioObjectUnknown else { return }
+        var address = Self.address(kAudioDevicePropertyNominalSampleRate)
+        AudioObjectRemovePropertyListenerBlock(
+            rateListenerDeviceID, &address, DispatchQueue.main, rateListener)
+        self.rateListener = nil
+        rateListenerDeviceID = AudioObjectID(kAudioObjectUnknown)
     }
 
     private func rebuildAfterDeviceChange() {
@@ -231,7 +270,20 @@ final class ProcessTapRecorder {
         return tapID
     }
 
-    private static func tapFormat(_ tapID: AudioObjectID) throws -> AVAudioFormat {
+    /// O formato real do áudio que vai chegar: a forma vem do tap, a **taxa vem do
+    /// dispositivo**.
+    ///
+    /// O `kAudioTapPropertyFormat` declara 48 kHz e não acompanha o dispositivo. Um par de
+    /// AirPods cai para 24 kHz ao entrar numa chamada — que é exatamente quando gravamos.
+    /// Acreditar no tap nesse momento não produz erro: cada quadro passa a valer metade do
+    /// tempo que vale, o arquivo sai com metade da duração e o áudio no dobro da
+    /// velocidade. A reunião inteira está lá, ininteligível, e nada no caminho reclama.
+    ///
+    /// A forma (canais, bytes por quadro, intercalado) continua vindo do tap: essa parte
+    /// ele acerta, e é ela que precisa bater com os buffers que chegam.
+    private static func captureFormat(
+        tapID: AudioObjectID, deviceID: AudioObjectID
+    ) throws -> AVAudioFormat {
         var addr = address(kAudioTapPropertyFormat)
         var asbd = AudioStreamBasicDescription()
         var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
@@ -239,10 +291,26 @@ final class ProcessTapRecorder {
             AudioObjectGetPropertyData(tapID, &addr, 0, nil, &size, &asbd),
             "formato do tap")
 
+        if let rate = nominalSampleRate(deviceID), rate > 0,
+           abs(rate - asbd.mSampleRate) > 1 {
+            Diagnostics.log("sistema: tap declara \(Int(asbd.mSampleRate)) Hz, dispositivo "
+                            + "está em \(Int(rate)) Hz — vale a do dispositivo")
+            asbd.mSampleRate = rate
+        }
+
         guard let format = AVAudioFormat(streamDescription: &asbd) else {
             throw CaptureError.unsupportedFormat("ASBD inválido do tap")
         }
         return format
+    }
+
+    private static func nominalSampleRate(_ deviceID: AudioObjectID) -> Double? {
+        var addr = address(kAudioDevicePropertyNominalSampleRate)
+        var rate = Double(0)
+        var size = UInt32(MemoryLayout<Double>.size)
+        guard AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &rate) == noErr
+        else { return nil }
+        return rate
     }
 
     /// Envolve o tap num aggregate device privado — é através dele que o áudio é lido.

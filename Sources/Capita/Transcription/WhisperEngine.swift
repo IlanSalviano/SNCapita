@@ -99,6 +99,17 @@ final class WhisperEngine {
         params.suppress_blank = true
         params.temperature_inc = 0.2   // fallback quando a decodificação sai degenerada
 
+        // Cada janela decodifica sozinha, sem o texto da anterior como prompt.
+        //
+        // Com o VAD ligado, o áudio que chega ao decoder é uma colagem de trechos de fala
+        // que podem estar a minutos de distância um do outro. Condicionar uma janela no
+        // texto da anterior, nesse arranjo, é alimentar o decoder com contexto de outro
+        // momento da reunião — e o modo de falha não é texto levemente errado, é um laço:
+        // ele emite uma anotação inventada, a anotação vira prompt, e a janela seguinte
+        // emite outra. Numa trilha de microfone de 68 minutos isso produziu 377 segmentos
+        // como "[SOM DE CHÁ RISADO]" em 471, apagando a fala real que havia no meio.
+        params.no_context = true
+
         // "auto" detecta o idioma E transcreve. Já a flag `detect_language` faz o
         // whisper_full apenas detectar e retornar sem nenhum segmento — o que se parece
         // exatamente com uma transcrição bem-sucedida de um áudio mudo.
@@ -145,7 +156,41 @@ final class WhisperEngine {
         }
         guard status == 0 else { throw TranscriptionError.failed(status) }
 
+        // As fronteiras de fala que o VAD achou, na linha do tempo ORIGINAL. O whisper as
+        // expõe justamente para o chamador poder reconciliar os tempos dos segmentos, que
+        // saem na linha comprimida.
+        let vadCount = Int(whisper_full_n_vad_segments(context))
+        let vadSpans: [(start: Double, end: Double)] = (0..<vadCount).map {
+            (Double(whisper_full_get_vad_segment_t0(context, Int32($0))) / 100,
+             Double(whisper_full_get_vad_segment_t1(context, Int32($0))) / 100)
+        }
+
+        let audioSeconds = Double(samples.count) / 16_000
+        let vadTotal = vadSpans.reduce(0) { $0 + ($1.end - $1.start) }
+        let rawCount = Int(whisper_full_n_segments(context))
+        let rawFirst = rawCount > 0 ? Double(whisper_full_get_segment_t0(context, 0)) / 100 : 0
+        let rawLast = rawCount > 0
+            ? Double(whisper_full_get_segment_t1(context, Int32(rawCount - 1))) / 100 : 0
+
+        Diagnostics.log(String(
+            format: "%@: áudio %.0fs | VAD %d trechos, %.0fs de fala (%.0f%%) até %.0fs "
+                  + "| segmentos brutos %d, de %.0fs a %.0fs",
+            track == .mic ? "mic" : "sistema", audioSeconds, vadCount, vadTotal,
+            audioSeconds > 0 ? vadTotal / audioSeconds * 100 : 0,
+            vadSpans.last?.end ?? 0, rawCount, rawFirst, rawLast))
+
         let gate = NoiseGate(samples: samples, sampleRate: 16_000)
+
+        // Quantos segmentos cada filtro come. Sem esta contagem um filtro silencioso pode
+        // apagar dois terços de uma reunião sem deixar rastro — foi o que aconteceu.
+        let tally = FilterTally()
+
+        defer {
+            Diagnostics.log(String(
+                format: "%@: filtros — %d vazios, %d anotações (ex.: %@), %d ruído",
+                track == .mic ? "mic" : "sistema",
+                tally.empty, tally.annotation, tally.sample ?? "—", tally.noise))
+        }
 
         return (0..<whisper_full_n_segments(context)).compactMap { index in
             let start = Double(whisper_full_get_segment_t0(context, index)) / 100
@@ -159,6 +204,7 @@ final class WhisperEngine {
 
             if !gate.isLikelySpeech(from: start, to: end)
                 && noSpeech > Self.noSpeechSuspicionThreshold {
+                tally.noise += 1
                 Diagnostics.log(String(
                     format: "descartado %.2fs–%.2fs: %.1fx o ruído, não-fala %.2f — %@",
                     start, end, gate.ratio(from: start, to: end) ?? 0, noSpeech,
@@ -169,7 +215,12 @@ final class WhisperEngine {
 
             let text = String(cString: whisper_full_get_segment_text(context, index))
                 .trimmingCharacters(in: .whitespaces)
-            guard !text.isEmpty, !Self.isNonSpeechAnnotation(text) else { return nil }
+            if text.isEmpty { tally.empty += 1; return nil }
+            if Self.isNonSpeechAnnotation(text) {
+                tally.annotation += 1
+                tally.sample = tally.sample ?? text
+                return nil
+            }
 
             return TimedSegment(
                 segment: TranscriptSegment(
@@ -223,6 +274,14 @@ final class WhisperEngine {
     /// Não são transcrição, são o modelo descrevendo o que ouviu. Numa ata de reunião só
     /// poluem. O teste é conservador: descarta apenas quando o segmento **inteiro** é a
     /// anotação, então uma fala real que por acaso contenha parênteses continua intacta.
+    /// Contagem do que cada filtro removeu, para o diagnóstico ao fim da trilha.
+    private final class FilterTally {
+        var empty = 0
+        var annotation = 0
+        var noise = 0
+        var sample: String?
+    }
+
     private static func isNonSpeechAnnotation(_ text: String) -> Bool {
         let pairs: [(Character, Character)] = [("[", "]"), ("(", ")"), ("*", "*")]
         guard let first = text.first, let last = text.last else { return false }

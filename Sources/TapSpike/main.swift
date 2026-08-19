@@ -149,21 +149,34 @@ final class LevelProbe: @unchecked Sendable {
     private let lock = NSLock()
     private var _peak: Float = 0
     private var _callbacks = 0
+    private var _frames = 0
+    private var _shape: String?
 
-    func record(peak: Float) {
+    func record(peak: Float, frames: Int, shape: String) {
         lock.lock(); defer { lock.unlock() }
         _peak = max(_peak, peak)
         _callbacks += 1
+        _frames += frames
+        if _shape == nil { _shape = shape }
     }
 
-    var snapshot: (peak: Float, callbacks: Int) {
+    var snapshot: (peak: Float, callbacks: Int, frames: Int, shape: String?) {
         lock.lock(); defer { lock.unlock() }
-        return (_peak, _callbacks)
+        return (_peak, _callbacks, _frames, _shape)
     }
 }
 
-func capture(device: AudioObjectID, seconds: Int) throws -> (peak: Float, callbacks: Int) {
+/// Captura e mede **quantos quadros por segundo realmente chegam**.
+///
+/// Não é curiosidade: o app declara o formato do tap uma vez e confia nele para converter
+/// tudo depois. Se o que chega não tem a forma declarada, a conversão não falha — ela
+/// escreve o arquivo na taxa errada, e o resultado é uma gravação acelerada, sem nenhum
+/// erro em lugar nenhum. Contar os quadros é a única forma de ver isso acontecendo.
+func capture(
+    device: AudioObjectID, seconds: Int, declared: AudioStreamBasicDescription
+) throws -> (peak: Float, callbacks: Int, frames: Int, shape: String?) {
     let probe = LevelProbe()
+    let bytesPerFrame = Int(declared.mBytesPerFrame)
 
     var procID: AudioDeviceIOProcID?
     try check(
@@ -172,13 +185,20 @@ func capture(device: AudioObjectID, seconds: Int) throws -> (peak: Float, callba
             let buffers = UnsafeMutableAudioBufferListPointer(
                 UnsafeMutablePointer(mutating: inputData))
             var peak: Float = 0
+            var bytes = 0
+            var shape: [String] = []
             for buffer in buffers {
+                bytes += Int(buffer.mDataByteSize)
+                shape.append("\(buffer.mNumberChannels)ch/\(buffer.mDataByteSize)B")
                 guard let raw = buffer.mData else { continue }
                 let count = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size
                 let samples = raw.bindMemory(to: Float.self, capacity: count)
                 for i in 0..<count { peak = max(peak, abs(samples[i])) }
             }
-            probe.record(peak: peak)
+            // Exatamente a conta que o AVAudioPCMBuffer(bufferListNoCopy:) faz.
+            let frames = bytesPerFrame > 0 ? bytes / bytesPerFrame : 0
+            probe.record(peak: peak, frames: frames,
+                         shape: "\(buffers.count) buffer(s): " + shape.joined(separator: ", "))
         },
         "AudioDeviceCreateIOProcIDWithBlock")
 
@@ -230,27 +250,103 @@ do {
 
     aggregateID = try createAggregateDevice(outputUID: output.uid, tapUID: tap.uid)
     print("3. Aggregate device ...... id \(aggregateID)")
-    print("4. Capturando 8 segundos:\n")
 
-    let result = try capture(device: aggregateID, seconds: 8)
+    // O formato que o tap declara. O app confia nele para converter tudo depois, então
+    // um descompasso entre o declarado e o que chega vira gravação acelerada.
+    var formatAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioTapPropertyFormat,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    var declared = AudioStreamBasicDescription()
+    var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+    try check(AudioObjectGetPropertyData(tap.id, &formatAddress, 0, nil, &size, &declared),
+              "kAudioTapPropertyFormat")
+
+    let interleaved = declared.mFormatFlags & kAudioFormatFlagIsNonInterleaved == 0
+    print("""
+    4. Formato declarado ..... \(Int(declared.mSampleRate)) Hz, \
+    \(declared.mChannelsPerFrame) canal(is), \(declared.mBytesPerFrame) B/quadro, \
+    \(interleaved ? "intercalado" : "planar")
+    5. Capturando 8 segundos:
+
+    """)
+
+    // Quantos quadros o dispositivo diz entregar por callback. É a única fonte de verdade
+    // independente do formato declarado: com ela dá para descobrir quantos bytes um quadro
+    // realmente ocupa, dividindo o tamanho do buffer que chega.
+    var frameSizeAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyBufferFrameSize,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    var ioFrames = UInt32(0)
+    var frameSizeSize = UInt32(MemoryLayout<UInt32>.size)
+    if AudioObjectGetPropertyData(aggregateID, &frameSizeAddress, 0, nil,
+                                  &frameSizeSize, &ioFrames) == noErr {
+        print("   (o dispositivo diz entregar \(ioFrames) quadros por callback)")
+    }
+
+    // A taxa real do aggregate. Se ela divergir da que o tap declara, é aí que o tempo se
+    // perde: os quadros chegam certos, mas cada um vale um intervalo diferente do suposto.
+    var rateAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyNominalSampleRate,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    var deviceRate = Double(0)
+    var rateSize = UInt32(MemoryLayout<Double>.size)
+    var effectiveRate = declared.mSampleRate
+    for (id, rotulo) in [(aggregateID, "aggregate"), (output.id, "saída \(output.name)")]
+    where AudioObjectGetPropertyData(id, &rateAddress, 0, nil, &rateSize, &deviceRate) == noErr {
+        let alerta = abs(deviceRate - declared.mSampleRate) > 1 ? "  ← diverge do tap!" : ""
+        print("   (taxa do \(rotulo): \(Int(deviceRate)) Hz\(alerta))")
+        if deviceRate > 0 { effectiveRate = deviceRate }
+    }
+    // É esta a taxa que o app usa desde a correção: a do dispositivo, não a do tap.
+    declared.mSampleRate = effectiveRate
+
+    let seconds = 8
+    let result = try capture(device: aggregateID, seconds: seconds, declared: declared)
 
     print("\n──────────────────────────────────────────────────────────────")
     if result.callbacks == 0 {
         print("✗ FALHOU — nenhum callback de áudio. O tap não entregou dados.")
         exit(1)
     }
+    // A verificação de taxa vem ANTES da de sinal, de propósito: contar quadros não
+    // depende de haver som. O silêncio também é entregue, e um descompasso de forma
+    // aparece nele igualzinho — dá para diagnosticar sem reunião nenhuma tocando.
+    let expected = Double(seconds) * declared.mSampleRate
+    let taxa = Double(result.frames) / expected
+
+    print("""
+      Forma dos buffers: \(result.shape ?? "?")
+      Quadros: \(result.frames) recebidos, \(Int(expected)) esperados em \(seconds)s \
+    (\(String(format: "%.2f", taxa))×)
+      Pico: \(String(format: "%.4f", result.peak))
+    """)
+
+    if taxa < 0.9 || taxa > 1.1 {
+        print("""
+
+        ✗ DESCOMPASSO — o que chega não tem a forma que o tap declara.
+          A \(String(format: "%.2f", taxa))× do esperado, a gravação sai com a duração
+          errada e o áudio no ritmo errado, sem erro em lugar nenhum.
+        """)
+        exit(3)
+    }
+
     if result.peak < 0.0001 {
         print("""
-        ⚠  INCONCLUSIVO — \(result.callbacks) callbacks, mas silêncio absoluto.
-           O tap funcionou, mas não havia áudio tocando. Rode de novo com som.
+
+        ⚠  TAXA CERTA, mas silêncio absoluto — não havia áudio tocando.
+           A forma dos buffers está validada; rode de novo com som para checar o sinal.
         """)
         exit(2)
     }
-    print("""
-    ✓ SUCESSO — \(result.callbacks) callbacks, pico \(String(format: "%.4f", result.peak))
 
-      O áudio do sistema foi capturado sem driver virtual e sem senha de admin.
-      A premissa central do projeto está validada.
+    print("""
+
+    ✓ SUCESSO — o áudio do sistema foi capturado sem driver virtual, sem senha de
+      administrador, e na taxa correta.
     """)
 } catch {
     print("\n✗ FALHOU — \(error.localizedDescription)")
