@@ -1,68 +1,79 @@
-# Onde paramos — 18/08/2026
+# Onde paramos — 19/08/2026
 
-Fases 0, 1 e 2 entregues e funcionando. O app está instalado em `~/Applications/Capita.app`
-e aparece na barra de menus (não no Dock).
+**Fases 0 a 3 entregues e validadas numa reunião real de 54 minutos.**
 
 ```bash
-make run     # compila, instala e abre
-make stop    # encerra
+make run     # compila, instala em ~/Applications e abre (ícone na barra de menus)
+make stop
+make dmg     # instalador (536 MB, tudo embarcado)
 ```
 
 ---
 
-## O teste que falta: gravar com fone de ouvido
+## O que a reunião real provou
 
-É o único teste que prova a tese central do produto — que a separação **você × outros**
-funciona. Até agora só testei com alto-falantes, e por isso as duas trilhas capturaram o
-mesmo áudio: o microfone ouvia o que saía das caixas.
+Gravação de 53,6 min, 8.662 palavras, 7 participantes detectados.
 
-**Como testar**
-
-1. Coloque o fone. Entre numa reunião real (Teams ou Zoom, app nativo).
-2. Clique no ícone de onda na barra de menus → **Iniciar gravação**.
-3. Fale, e deixe a outra pessoa falar.
-4. Pare pela cápsula flutuante. A gravação aparece em "Gravações recentes" com um
-   indicador de progresso enquanto transcreve.
-5. Abra a biblioteca pelo ícone de pasta e confira o transcript.
-
-**O que observar**
-
-| Verificação | Por que importa |
+| Verificação | Resultado |
 |---|---|
-| Alguma permissão pediu senha de **administrador**? | Se pedir, a arquitetura inteira precisa ser repensada — ela existe para evitar isso. |
-| Sua voz saiu como "Você" e a do outro como "Outros"? | É a tese do produto. Com fone, as trilhas devem se separar de verdade. |
-| Faltou alguma frase? | Os filtros anti-alucinação podem estar cortando fala legítima. |
-| **Apareceu alguma frase que ninguém disse?** | O ponto mais importante — ver abaixo. |
-| A janela de biblioteca abriu na frente? | Nunca consegui confirmar visualmente (Outlook em tela cheia noutro Space). |
+| **Separação você × outros** | **0% de vazamento** — 0 de 69 falas suas duplicam a trilha do sistema |
+| Segmentos: sistema / microfone | 436 / 69 |
+| Sincronia das trilhas em 54 min | 0,6 s de diferença |
+| **Alucinação** | **zero** — nenhum marcador do Whisper, nenhuma frase repetida |
+| 40+ min em que você não falou | não produziram nenhum texto fabricado |
+| Permissões | nenhuma pediu senha de administrador |
 
-**Se aparecer frase inventada**, capture os números do descarte:
+A separação é a tese central do produto: o que entra pelo microfone é você, o que sai pela
+saída de áudio são os outros. Com fone, funciona.
 
-```bash
-log stream --predicate 'subsystem == "com.ilansalviano.capita"'
-```
-
-Repetir também no **navegador** (Chrome): é o caso que justifica capturar o sistema
-inteiro em vez de filtrar pelo app da reunião.
+A diarização se comportou bem com vozes humanas — muito melhor que com as vozes sintéticas
+do `say`, que tinham sugerido o contrário. Um participante que falou uma vez só foi
+corretamente isolado: o contexto confirma (*"you're on mute. Sorry about that."*).
 
 ---
 
-## Ressalva honesta sobre o estado atual
+## Correções feitas nesta rodada
 
-A defesa contra frases inventadas **não foi exercitada** desde que afrouxei os filtros para
-parar de cortar fala legítima. Nenhuma alucinação apareceu nos testes seguintes — o que
-não é prova de que a proteção funciona, apenas de que não foi provocada. Uma reunião real,
-com silêncios longos e ruído de sala, é o que vai testá-la.
+**Alinhamento das fronteiras de locutor.** O Whisper corta os segmentos sem saber quem
+fala, então um segmento atravessava a troca e a frase inteira ia para uma pessoa só —
+51 dos 436 segmentos. Agora o segmento é cortado no ponto da troca.
 
-Detalhes da calibração e os números medidos estão na seção *Qualidade da transcrição* do
-`README.md`.
+**Sobreviver à troca de rota de áudio.** Plugar um fone reconfigurava o `AVAudioEngine` e
+invalidava o aggregate device: a gravação parava de crescer, em silêncio. Numa gravação
+anterior a trilha do microfone terminou em 13 s contra 27 s do sistema.
+
+**Filtro que apagava participantes.** O `NoiseGate` comparava cada trecho com o
+participante mais alto da trilha e descartava quem falava mais baixo. Agora compara com o
+**piso de ruído**, tratando todos igualmente.
+
+---
+
+## Limitação conhecida
+
+O corte por locutor só resolve quando a troca cai **dentro** de um segmento do Whisper.
+Quando os dois limites quase coincidem mas estão deslocados por uma ou duas palavras, o
+erro está na posição da fronteira, não na segmentação — e o corte não ajuda. Exemplo que
+permanece errado:
+
+```
+[25:33] S2  ...Maybe, maybe you have a whole
+[25:37] S1  different approach. I have projects in Claude...
+```
+
+O *"different approach"* é do S2. Resolver isso exigiria alinhar as fronteiras da
+diarização às do Whisper, ou timestamps por palavra confiáveis (ver armadilha abaixo).
+
+⚠ **Não ligue `token_timestamps` do whisper.cpp.** Parece a solução óbvia, mas é
+incompatível com o VAD: os tempos dos segmentos passam a vir da linha do tempo comprimida,
+sem os silêncios. Na reunião de 54 min as falas se deslocaram em até 5,5 minutos. E
+desligar o VAD não é opção — foi ele que garantiu zero alucinação.
 
 ---
 
 ## Decisões em aberto
 
-**1. Motor de IA para os sumários (bloqueia a Fase 4).**
-O Claude Code CLI não pode ser embarcado no `.dmg` — depende da sua conta e autenticação.
-Numa máquina sem ele, sumários e Ask AI não funcionam. As opções:
+**1. Motor de IA para os sumários — bloqueia a Fase 4.**
+O Claude Code CLI não pode ser embarcado no `.dmg`: depende da sua conta e autenticação.
 
 | Opção | Custo | Consequência |
 |---|---|---|
@@ -75,14 +86,28 @@ em outra máquina: o macOS 26 só oferece "Mover para o Lixo".
 
 ---
 
-## Próximo passo combinado
+## Próximas fases
 
-**Fase 3 — diarização**: distinguir os participantes entre si dentro da trilha do sistema.
-Direção já pesquisada: **FluidAudio** (SPM, Apache-2.0, pyannote Community-1 em CoreML
-rodando na ANE, suporta modelos embarcados) ou **sherpa-onnx** com pyannote-seg-3.0 (MIT)
-+ WeSpeaker CAM++ (Apache-2.0), ~35 MB no total.
+- **Fase 4 — Sumários com IA**: templates por tipo de reunião, action items, decisões.
+  Depende da decisão 1.
+- **Fase 5 — Ask AI (RAG)**: busca semântica com citações que saltam para o timestamp.
+  Direção pesquisada: llama.cpp compartilhando o mesmo checkout do ggml + `embeddinggemma-300m`.
+- **Fase 6 — Detecção de reunião, notas, screenshots durante a call.**
+- **Fase 7 — Exportação, busca global, atalhos.**
 
-⚠ Evitar os modelos `reverb-diarization`: a licença proíbe uso comercial.
+Plano completo em `~/.claude/plans/indexed-puzzling-kahan.md`.
 
-O plano completo, com as fases 4 a 7, está em
-`~/.claude/plans/indexed-puzzling-kahan.md`.
+---
+
+## Diagnóstico
+
+```bash
+Capita --smoke-record 8              # grava e valida as duas trilhas
+Capita --smoke-transcribe [id]       # transcreve; sem id usa a mais recente
+Capita --open-library                # abre a biblioteca direto
+log stream --predicate 'subsystem == "com.ilansalviano.capita"'
+```
+
+O `--smoke-transcribe <prefixo-do-id>` re-transcreve uma gravação antiga. Use para checar
+regressão: os filtros anti-alucinação já foram recalibrados várias vezes, e cada ajuste
+arrisca reabrir um problema anterior.
