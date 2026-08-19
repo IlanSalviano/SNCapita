@@ -26,6 +26,19 @@
 "speaker.you" = "Você";
 "speaker.others" = "Outros";
 
+/* Exportação */
+"export.menu" = "Exportar";
+"export.package" = "Áudio + transcrição…";
+"export.audio" = "Somente o áudio (M4A)…";
+"export.tracks" = "Trilhas separadas (WAV)…";
+"export.transcript" = "Transcrição";
+"export.here" = "Exportar aqui";
+"export.folder_prompt" = "Escolha a pasta onde salvar os arquivos.";
+"export.exporting" = "Exportando…";
+"export.failed" = "Não foi possível exportar";
+"export.reveal" = "Revelar a gravação no Finder";
+"export.reveal_last" = "Mostrar no Finder";
+
 /* Acessibilidade */
 "a11y.menu_bar_icon" = "Capita — gravador de reuniões";
 

@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import Foundation
 
@@ -140,6 +141,148 @@ enum SmokeTest {
                 fail(error.localizedDescription)
             }
         }
+    }
+
+    /// `Capita --smoke-export [prefixo-do-id]` exporta a gravação para /tmp e confere o
+    /// resultado. Mede o que a interface esconde: o tamanho do arquivo e o tempo de mixagem.
+    static var wantsExport: Bool {
+        CommandLine.arguments.contains("--smoke-export")
+    }
+
+    static func runExport(state: AppState) {
+        let all = RecordingStore.shared.loadAll()
+        let requested = CommandLine.arguments
+            .drop { $0 != "--smoke-export" }.dropFirst().first
+        let chosen = requested.flatMap { prefix in
+            all.first { $0.id.uuidString.lowercased().hasPrefix(prefix.lowercased()) }
+        }
+
+        guard let recording = chosen ?? all.first else {
+            fail("nenhuma gravação para exportar")
+            return
+        }
+
+        let source = RecordingStore.shared.directory(for: recording.id)
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("capita-export", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+
+        print("▸ Gravação \(recording.id) (\(String(format: "%.1f", recording.duration))s)")
+        print("  origem: \(bytes(in: source, named: ["mic.wav", "system.wav"])) em WAV\n")
+
+        let audio = folder.appendingPathComponent("mix.m4a")
+        let started = Date()
+        do {
+            try AudioExporter.exportMixed(from: source, to: audio)
+        } catch {
+            fail(error.localizedDescription)
+            return
+        }
+
+        let elapsed = Date().timeIntervalSince(started)
+        let size = (try? FileManager.default.attributesOfItem(atPath: audio.path)[.size])
+            .flatMap { $0 as? Int } ?? 0
+
+        print("✓ Áudio mixado em \(String(format: "%.1f", elapsed))s")
+        print("  \(audio.path)")
+        print("  \(format(bytes: size))")
+
+        // O que o arquivo diz de si mesmo. Um M4A de duração errada é o modo de falha
+        // realista aqui: as trilhas têm comprimentos diferentes e o loop pode parar cedo.
+        if let asset = try? AVAudioFile(forReading: audio) {
+            let seconds = Double(asset.length) / asset.processingFormat.sampleRate
+            let drift = abs(seconds - recording.duration)
+            print(String(format: "  duração: %.1fs (%.1fs de diferença para a gravação)",
+                         seconds, drift))
+            if drift > 2 { fail("o áudio exportado não tem a duração da gravação"); return }
+        }
+
+        if let transcript = state.transcription.transcript(for: recording.id) {
+            guard verifyBothTracksPresent(in: audio, transcript: transcript) else { return }
+
+            for exportFormat in TranscriptExporter.Format.allCases {
+                let text = TranscriptExporter.render(
+                    transcript, recording: recording, format: exportFormat)
+                let url = folder.appendingPathComponent("transcript.\(exportFormat.fileExtension)")
+                try? text.write(to: url, atomically: true, encoding: .utf8)
+                print("  ✓ \(exportFormat.displayName) — \(format(bytes: text.utf8.count))")
+            }
+        } else {
+            print("  (sem transcrição salva; só o áudio foi exportado)")
+        }
+
+        print("\n  pasta: \(folder.path)")
+        print("\n✓ SUCESSO")
+        NSApp.terminate(nil)
+    }
+
+    /// Confere que o mix contém som nos dois lados da conversa.
+    ///
+    /// Um arquivo com o tamanho e a duração certos ainda pode ter perdido uma das trilhas
+    /// — foi assim que a gravação quebrou quando o fone era plugado no meio, e o sintoma
+    /// era justamente nenhum: arquivos presentes, silêncio dentro. Então medimos a energia
+    /// do mix num trecho em que só você fala e noutro em que só os outros falam.
+    private static func verifyBothTracksPresent(
+        in audio: URL, transcript: Transcript
+    ) -> Bool {
+        guard let file = try? AVAudioFile(forReading: audio) else {
+            fail("o áudio exportado não pôde ser reaberto")
+            return false
+        }
+
+        var ok = true
+        for track in [TranscriptSegment.Track.mic, .system] {
+            // Um segmento longo: quanto mais fala dentro da janela, menos a medida depende
+            // de acertar a pausa exata entre duas frases.
+            guard let segment = transcript.segments
+                .filter({ $0.track == track && $0.end - $0.start > 3 })
+                .max(by: { ($0.end - $0.start) < ($1.end - $1.start) })
+            else { continue }
+
+            let level = rms(of: file, from: segment.start, to: segment.end)
+            let label = track == .mic ? "você" : "outros"
+            let heard = level > 0.005
+            ok = ok && heard
+            print(String(format: "  %@ trilha \"%@\" audível no mix em %@ (RMS %.4f)",
+                         heard ? "✓" : "✗", label, S.timecode(segment.start), level))
+        }
+
+        if !ok { fail("uma das trilhas não sobreviveu à mixagem") }
+        return ok
+    }
+
+    private static func rms(of file: AVAudioFile, from start: TimeInterval,
+                            to end: TimeInterval) -> Float {
+        let rate = file.processingFormat.sampleRate
+        let frames = AVAudioFrameCount((end - start) * rate)
+        guard frames > 0,
+              let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
+                                            frameCapacity: frames)
+        else { return 0 }
+
+        file.framePosition = AVAudioFramePosition(start * rate)
+        guard (try? file.read(into: buffer, frameCount: frames)) != nil,
+              let samples = buffer.floatChannelData?[0], buffer.frameLength > 0
+        else { return 0 }
+
+        let count = Int(buffer.frameLength)
+        var sum: Float = 0
+        for index in 0..<count { sum += samples[index] * samples[index] }
+        return (sum / Float(count)).squareRoot()
+    }
+
+    private static func bytes(in directory: URL, named files: [String]) -> String {
+        let total = files.reduce(0) { sum, name in
+            let path = directory.appendingPathComponent(name).path
+            let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size])
+                .flatMap { $0 as? Int } ?? 0
+            return sum + size
+        }
+        return format(bytes: total)
+    }
+
+    private static func format(bytes: Int) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
     static var requestedDuration: TimeInterval? {

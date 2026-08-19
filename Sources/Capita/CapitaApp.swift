@@ -53,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SmokeTest.runTranscribe(state: state)
         } else if SmokeTest.wantsEngines {
             SmokeTest.runEngines()
+        } else if SmokeTest.wantsExport {
+            SmokeTest.runExport(state: state)
         } else if CommandLine.arguments.contains("--open-library") {
             // Atalhos de diagnóstico: abrem as janelas sem passar pelo popover.
             state.openLibrary()

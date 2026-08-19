@@ -65,6 +65,40 @@ struct Transcript: Codable, Sendable {
         return segments.compactMap(\.speakerID).filter { seen.insert($0).inserted }
     }
 
+    /// Um bloco contíguo de fala da mesma pessoa.
+    struct Turn: Identifiable, Sendable {
+        let id: Int
+        let start: TimeInterval
+        let end: TimeInterval
+        let speaker: String
+        let text: String
+    }
+
+    /// Agrupa segmentos consecutivos do mesmo locutor.
+    ///
+    /// O Whisper corta a cada poucos segundos, então uma pessoa falando por um minuto vira
+    /// vinte linhas. Isso serve ao player, onde cada linha é um ponto de salto, mas
+    /// atrapalha em tudo o mais: um texto exportado fica ilegível, e um transcript
+    /// fatiado assim faz a IA gastar tokens repetindo o nome de quem fala.
+    func turns(you: String, fallback: String) -> [Turn] {
+        var result: [Turn] = []
+        for segment in segments {
+            let speaker = speakerLabel(for: segment, you: you, fallback: fallback)
+            let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+
+            if let last = result.last, last.speaker == speaker {
+                result[result.count - 1] = Turn(
+                    id: last.id, start: last.start, end: segment.end,
+                    speaker: speaker, text: last.text + " " + text)
+            } else {
+                result.append(Turn(id: result.count, start: segment.start,
+                                   end: segment.end, speaker: speaker, text: text))
+            }
+        }
+        return result
+    }
+
     /// Índice do segmento tocando num dado instante. Usado pelo player para destacar a
     /// fala corrente; retorna nil nos silêncios entre segmentos.
     func indexOfSegment(at time: TimeInterval) -> Int? {

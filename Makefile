@@ -1,4 +1,4 @@
-.PHONY: help build app dmg install run stop spike-tap icon signing-cert clean check
+.PHONY: help build app dmg install run stop spike-tap smoke-record smoke-export icon signing-cert clean check
 
 APP      := build/Capita.app
 INSTALLED := $(HOME)/Applications/Capita.app
@@ -8,6 +8,7 @@ help:
 	@echo
 	@echo "  make spike-tap     Prova que a captura de áudio funciona sem admin"
 	@echo "  make smoke-record  Grava 8s de verdade e confere as duas trilhas"
+	@echo "  make smoke-export  Mixa e exporta a gravação mais recente para /tmp"
 	@echo "  make app           Compila e monta Capita.app"
 	@echo "  make install       Instala em ~/Applications (sem admin)"
 	@echo "  make run           Instala e abre"
@@ -30,6 +31,12 @@ spike-tap: build
 smoke-record: install
 	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
 	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-record 8
+
+# Mixa as duas trilhas, escreve todos os formatos em /tmp e confere o resultado —
+# inclusive se as duas trilhas sobreviveram à mixagem.
+smoke-export: install
+	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
+	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-export
 
 icon:
 	@swift scripts/make-icon.swift Resources/AppIcon.icns

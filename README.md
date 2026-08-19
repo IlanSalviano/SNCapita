@@ -62,6 +62,8 @@ O app aparece na **barra de menus**, não no Dock.
 ```bash
 Capita --smoke-record 8     # grava e valida as trilhas
 Capita --smoke-transcribe   # transcreve a gravação mais recente e imprime
+Capita --smoke-engines      # detecta e testa o motor de IA
+Capita --smoke-export       # mixa, exporta tudo para /tmp e confere
 Capita --open-library       # abre a biblioteca direto
 log stream --predicate 'subsystem == "com.ilansalviano.capita"'
 ```

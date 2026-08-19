@@ -13,7 +13,6 @@ struct RecordingDetailView: View {
     @State private var player = PlayerController()
     @State private var transcript: Transcript?
     @State private var loadError: String?
-
     private var activeSegmentID: Int? {
         transcript?.indexOfSegment(at: player.currentTime)
     }
@@ -22,7 +21,7 @@ struct RecordingDetailView: View {
         VStack(spacing: 0) {
             if let transcript, !transcript.speakerIDs.isEmpty {
                 SpeakerBar(recordingID: recording.id, transcript: transcript) {
-                    self.transcript = state.transcription.transcript(for: recording.id)
+                    reloadTranscript()
                 }
                 Divider().overlay(Design.Palette.separator)
             }
@@ -31,12 +30,21 @@ struct RecordingDetailView: View {
             playerBar
         }
         .navigationTitle(recording.title)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                ExportMenu(recording: recording, transcript: transcript)
+            }
+        }
         .task(id: recording.id) { load() }
         .onDisappear { player.stop() }
         // Reconsulta quando a transcrição em background termina.
         .onChange(of: state.transcription.currentRecordingID) { _, _ in
             if transcript == nil { transcript = state.transcription.transcript(for: recording.id) }
         }
+    }
+
+    private func reloadTranscript() {
+        transcript = state.transcription.transcript(for: recording.id)
     }
 
     private func load() {
@@ -135,6 +143,58 @@ struct RecordingDetailView: View {
         }
         .padding(.horizontal, Design.Metrics.padding)
         .padding(.vertical, 12)
+    }
+}
+
+/// Menu de exportação da gravação.
+///
+/// O primeiro item é o que motivou a tela: levar a reunião para outra ferramenta. Áudio e
+/// transcrição saem juntos porque a comparação é o ponto — o áudio para a ferramenta
+/// externa processar, o texto para conferir o que ela devolveu contra o que já sabemos.
+private struct ExportMenu: View {
+    let recording: Recording
+    let transcript: Transcript?
+
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        Menu {
+            Button(S.exportPackage) {
+                state.export.exportPackage(recording, transcript: transcript)
+            }
+            Button(S.exportAudio) { state.export.exportAudio(recording) }
+
+            if let transcript {
+                Menu(S.exportTranscript) {
+                    ForEach(TranscriptExporter.Format.allCases) { format in
+                        Button(format.displayName) {
+                            state.export.exportTranscript(
+                                recording, transcript: transcript, format: format)
+                        }
+                    }
+                }
+            }
+
+            Divider()
+            Button(S.exportTracks) { state.export.exportSeparateTracks(recording) }
+            Button(S.revealInFinder) { state.export.revealRecording(recording) }
+
+            if state.export.lastExport != nil {
+                Button(S.revealLastExport) { state.export.revealLastExport() }
+            }
+        } label: {
+            if state.export.isExporting {
+                // Progresso no próprio botão. Mixar 54 minutos leva alguns segundos, e sem
+                // sinal nenhum o clique parece não ter feito nada.
+                ProgressView(value: state.export.progress)
+                    .progressViewStyle(.circular)
+                    .controlSize(.small)
+            } else {
+                Label(S.export, systemImage: "square.and.arrow.up")
+            }
+        }
+        .disabled(state.export.isExporting)
+        .help(state.export.lastError ?? S.export)
     }
 }
 

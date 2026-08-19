@@ -36,6 +36,19 @@ enum S {
     static var speakerOthers: String { t("speaker.others") }
     static var participants: String { t("speaker.participants") }
 
+    // Exportação
+    static var export: String { t("export.menu") }
+    static var exportPackage: String { t("export.package") }
+    static var exportAudio: String { t("export.audio") }
+    static var exportTracks: String { t("export.tracks") }
+    static var exportTranscript: String { t("export.transcript") }
+    static var exportHere: String { t("export.here") }
+    static var exportFolderPrompt: String { t("export.folder_prompt") }
+    static var exporting: String { t("export.exporting") }
+    static var exportFailed: String { t("export.failed") }
+    static var revealInFinder: String { t("export.reveal") }
+    static var revealLastExport: String { t("export.reveal_last") }
+
     // Motor de IA e ajustes
     static var noEngineAvailable: String { t("engine.none") }
     static var settingsTitle: String { t("settings.title") }

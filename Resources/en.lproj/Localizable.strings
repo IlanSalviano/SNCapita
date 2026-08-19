@@ -26,6 +26,19 @@
 "speaker.you" = "You";
 "speaker.others" = "Others";
 
+/* Export */
+"export.menu" = "Export";
+"export.package" = "Audio + transcript…";
+"export.audio" = "Audio only (M4A)…";
+"export.tracks" = "Separate tracks (WAV)…";
+"export.transcript" = "Transcript";
+"export.here" = "Export here";
+"export.folder_prompt" = "Choose the folder to save the files in.";
+"export.exporting" = "Exporting…";
+"export.failed" = "Export failed";
+"export.reveal" = "Reveal recording in Finder";
+"export.reveal_last" = "Show in Finder";
+
 /* Accessibility */
 "a11y.menu_bar_icon" = "Capita — meeting recorder";
 

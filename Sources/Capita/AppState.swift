@@ -18,6 +18,7 @@ final class AppState {
 
     let transcription = TranscriptionService()
     let intelligence = IntelligenceEngine()
+    let export = ExportService()
 
     /// Notifica a barra de menus para atualizar o ícone. É um callback simples porque o
     /// `MenuBarController` é AppKit e vive fora da árvore SwiftUI.
