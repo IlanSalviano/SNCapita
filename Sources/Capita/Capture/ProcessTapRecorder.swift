@@ -21,6 +21,9 @@ final class ProcessTapRecorder {
     private var writer: AudioFileWriter?
     private var format: AVAudioFormat?
 
+    /// Observa a troca do dispositivo de saída padrão. Ver `rebuildAfterDeviceChange`.
+    private var deviceListener: AudioObjectPropertyListenerBlock?
+
     /// Erro ocorrido dentro do IOProc, que roda numa thread de tempo real e não pode
     /// lançar. Consultado pelo `stop()`.
     private let errorLock = NSLock()
@@ -29,22 +32,44 @@ final class ProcessTapRecorder {
     // MARK: - Ciclo de vida
 
     func start(writingTo url: URL) throws {
+        // Construímos a cadeia uma vez para descobrir o formato antes de abrir o arquivo.
+        let initialFormat = try buildChain(existingWriter: nil)
+        writer = try AudioFileWriter(url: url, sourceFormat: initialFormat)
+        try installIOProc()
+        observeOutputDeviceChanges()
+    }
+
+    func stop() throws {
+        removeOutputDeviceObserver()
+        teardownChain()
+        writer = nil
+
+        errorLock.lock()
+        let error = deferredError
+        deferredError = nil
+        errorLock.unlock()
+        if let error { throw error }
+    }
+
+    // MARK: - Cadeia de captura
+
+    /// Cria tap + aggregate device e devolve o formato do áudio capturado.
+    @discardableResult
+    private func buildChain(existingWriter: AudioFileWriter?) throws -> AVAudioFormat {
         let output = try Self.defaultOutputDevice()
 
         tapID = try Self.createGlobalTap()
         let tapUID = try Self.stringProperty(tapID, kAudioTapPropertyUID, "UID do tap")
-        format = try Self.tapFormat(tapID)
 
-        guard let format else { throw CaptureError.unsupportedFormat("desconhecido") }
-        writer = try AudioFileWriter(url: url, sourceFormat: format)
+        let tapFormat = try Self.tapFormat(tapID)
+        format = tapFormat
+        try existingWriter?.updateSourceFormat(tapFormat)
 
-        aggregateID = try Self.createAggregateDevice(
-            outputUID: output.uid, tapUID: tapUID)
-
-        try installIOProc()
+        aggregateID = try Self.createAggregateDevice(outputUID: output.uid, tapUID: tapUID)
+        return tapFormat
     }
 
-    func stop() throws {
+    private func teardownChain() {
         if let ioProcID, aggregateID != kAudioObjectUnknown {
             AudioDeviceStop(aggregateID, ioProcID)
             AudioDeviceDestroyIOProcID(aggregateID, ioProcID)
@@ -59,13 +84,55 @@ final class ProcessTapRecorder {
             AudioHardwareDestroyProcessTap(tapID)
             tapID = AudioObjectID(kAudioObjectUnknown)
         }
-        writer = nil
+    }
 
-        errorLock.lock()
-        let error = deferredError
-        deferredError = nil
-        errorLock.unlock()
-        if let error { throw error }
+    // MARK: - Troca de dispositivo de saída
+
+    /// Reconstrói a captura quando o dispositivo de saída padrão muda.
+    ///
+    /// O aggregate device é montado **em volta** de um dispositivo de saída específico.
+    /// Quando o usuário pluga um fone, o macOS troca a saída padrão e o aggregate antigo
+    /// passa a apontar para um dispositivo que não está mais tocando nada: a gravação
+    /// continua "funcionando", só que gravando silêncio, sem erro algum.
+    ///
+    /// Trocar de fone é justamente o que se faz ao entrar numa reunião, então este é o
+    /// caminho comum, não uma borda rara.
+    private func observeOutputDeviceChanges() {
+        var address = Self.address(kAudioHardwarePropertyDefaultOutputDevice)
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.rebuildAfterDeviceChange()
+        }
+        deviceListener = listener
+
+        AudioObjectAddPropertyListenerBlock(
+            Self.systemObject, &address, DispatchQueue.main, listener)
+    }
+
+    private func removeOutputDeviceObserver() {
+        guard let deviceListener else { return }
+        var address = Self.address(kAudioHardwarePropertyDefaultOutputDevice)
+        AudioObjectRemovePropertyListenerBlock(
+            Self.systemObject, &address, DispatchQueue.main, deviceListener)
+        self.deviceListener = nil
+    }
+
+    private func rebuildAfterDeviceChange() {
+        guard let writer else { return }
+
+        let name = (try? Self.defaultOutputDevice())
+            .flatMap { try? Self.stringProperty($0.id, kAudioObjectPropertyName, "nome") }
+        Diagnostics.log("sistema: saída mudou para \(name ?? "?"), refazendo a captura")
+
+        teardownChain()
+        do {
+            try buildChain(existingWriter: writer)
+            try installIOProc()
+        } catch {
+            errorLock.lock()
+            if deferredError == nil { deferredError = error }
+            errorLock.unlock()
+            Diagnostics.log("sistema: falha ao refazer a captura — \(error.localizedDescription)")
+        }
     }
 
     /// Pico de amplitude desde a última leitura, para o medidor de nível.

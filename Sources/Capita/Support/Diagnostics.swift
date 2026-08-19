@@ -11,8 +11,11 @@ enum Diagnostics {
     private static let logger = Logger(
         subsystem: "com.ilansalviano.capita", category: "app")
 
+    /// Usamos `notice`, não `debug`: o macOS descarta mensagens de debug da memória e elas
+    /// não aparecem no `log show` depois do fato. Como o valor deste log está justamente
+    /// em investigar o que aconteceu numa gravação já encerrada, precisam ser persistidas.
     static func log(_ message: String) {
-        logger.debug("\(message, privacy: .public)")
+        logger.notice("\(message, privacy: .public)")
         FileHandle.standardError.write(Data("[capita] \(message)\n".utf8))
     }
 }

@@ -16,8 +16,8 @@ final class AudioFileWriter {
         interleaved: true)!
 
     private let file: AVAudioFile
-    private let converter: AVAudioConverter?
-    private let sourceFormat: AVAudioFormat
+    private var converter: AVAudioConverter?
+    private var sourceFormat: AVAudioFormat
 
     /// Pico de amplitude desde a última leitura, para o medidor de nível.
     private(set) var peak: Float = 0
@@ -39,6 +39,25 @@ final class AudioFileWriter {
 
         if converter == nil && sourceFormat != Self.targetFormat {
             throw CaptureError.unsupportedFormat(sourceFormat.description)
+        }
+    }
+
+    /// Troca o formato de entrada sem interromper o arquivo.
+    ///
+    /// O hardware de áudio muda de formato em pleno uso — plugar um fone, o sistema
+    /// trocar o dispositivo de entrada. Sem isto, o conversor continuaria configurado
+    /// para o formato antigo e a gravação sairia truncada ou distorcida daquele ponto em
+    /// diante, silenciosamente.
+    func updateSourceFormat(_ format: AVAudioFormat) throws {
+        guard format != sourceFormat else { return }
+
+        sourceFormat = format
+        converter = format == Self.targetFormat
+            ? nil
+            : AVAudioConverter(from: format, to: Self.targetFormat)
+
+        if converter == nil && format != Self.targetFormat {
+            throw CaptureError.unsupportedFormat(format.description)
         }
     }
 
