@@ -13,6 +13,12 @@ import PackageDescription
 let package = Package(
     name: "Capita",
     platforms: [.macOS(.v15)],
+    dependencies: [
+        // Diarização de locutor rodando na Neural Engine. Escolhido por conseguir
+        // trabalhar 100% offline com modelos embarcados no bundle — requisito do
+        // projeto, já que o app precisa funcionar numa máquina sem rede nem instalações.
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.12.4"),
+    ],
     targets: [
         // Ponte para a API C do whisper.cpp.
         .target(
@@ -25,7 +31,10 @@ let package = Package(
 
         .executableTarget(
             name: "Capita",
-            dependencies: ["WhisperC"],
+            dependencies: [
+                "WhisperC",
+                .product(name: "FluidAudio", package: "FluidAudio"),
+            ],
             path: "Sources/Capita",
             linkerSettings: [
                 .linkedFramework("AppKit"),
@@ -45,6 +54,14 @@ let package = Package(
                     "-lggml-metal", "-lggml-blas",
                 ]),
             ]
+        ),
+
+        // Spike de validação da Fase 3: diariza uma gravação e imprime quem falou
+        // quando, para medir qualidade e tempo antes de integrar ao app.
+        .executableTarget(
+            name: "DiarizeSpike",
+            dependencies: [.product(name: "FluidAudio", package: "FluidAudio")],
+            path: "Sources/DiarizeSpike"
         ),
 
         // Spike de validação: prova que o CoreAudio process tap captura o áudio do

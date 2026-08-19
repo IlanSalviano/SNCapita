@@ -25,7 +25,17 @@ enum SmokeTest {
             fail("nenhum modelo de transcrição encontrado (rode ./scripts/fetch-model.sh)")
             return
         }
-        guard let latest = RecordingStore.shared.loadAll().first else {
+        // Argumento opcional: prefixo do id da gravação. Permite re-transcrever um caso
+        // antigo para checar regressão — os filtros anti-alucinação já foram ajustados
+        // várias vezes, e cada ajuste arrisca reabrir um problema anterior.
+        let all = RecordingStore.shared.loadAll()
+        let requested = CommandLine.arguments
+            .drop { $0 != "--smoke-transcribe" }.dropFirst().first
+        let chosen = requested.flatMap { prefix in
+            all.first { $0.id.uuidString.lowercased().hasPrefix(prefix.lowercased()) }
+        }
+
+        guard let latest = chosen ?? all.first else {
             fail("nenhuma gravação para transcrever (rode make smoke-record antes)")
             return
         }
@@ -50,10 +60,12 @@ enum SmokeTest {
         if let transcript = state.transcription.transcript(for: id) {
             let elapsed = Date().timeIntervalSince(started)
             print("✓ Transcrito em \(String(format: "%.1f", elapsed))s")
-            print("  idioma: \(transcript.language)   segmentos: \(transcript.segments.count)\n")
+            let speakers = transcript.speakerIDs
+            print("  idioma: \(transcript.language)   segmentos: \(transcript.segments.count)"
+                  + "   participantes: \(speakers.isEmpty ? "—" : speakers.joined(separator: ", "))\n")
             for segment in transcript.segments.prefix(20) {
-                let who = segment.track == .mic ? "você " : "outros"
-                print(String(format: "  [%6.2f] %@  %@", segment.start, who, segment.text))
+                let who = transcript.speakerLabel(for: segment, you: "você", fallback: "outros")
+                print(String(format: "  [%6.2f] %-8@ %@", segment.start, who, segment.text))
             }
             if transcript.segments.isEmpty {
                 print("  (nenhuma fala reconhecida — o áudio era música ou ruído?)")

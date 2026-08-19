@@ -15,9 +15,6 @@ final class WhisperEngine {
     private var context: OpaquePointer?
     let modelName: String
 
-    /// Nível de áudio abaixo do qual o segmento é *suspeito* — não descartado sozinho.
-    private static let quietLevelThreshold: Float = 0.30
-
     /// Suspeita de não-fala reportada pelo modelo. O corte é baixo de propósito: nas
     /// medições, fala real fica em 0,01 e ruído transformado em frase, em 0,08. Um limiar
     /// alto (0,6) não separava nada; o sinal útil está bem perto de zero.
@@ -143,19 +140,17 @@ final class WhisperEngine {
             let start = Double(whisper_full_get_segment_t0(context, index)) / 100
             let end = Double(whisper_full_get_segment_t1(context, index)) / 100
 
-            // Descartamos um segmento apenas quando as DUAS evidências concordam: o nível
-            // do áudio é baixo para esta trilha E o próprio modelo suspeita que não há
-            // fala ali. Usar só o nível cortava fala legítima — alguém falando baixo, ou
-            // longe do microfone, tem nível de ruído mas o modelo o reconhece com
-            // confiança total. Exigir concordância mantém a defesa contra frases
-            // inventadas sem sacrificar quem fala baixo.
-            let level = gate.ratio(from: start, to: end) ?? 1
+            // Descartamos um segmento apenas quando as DUAS evidências concordam: o áudio
+            // está praticamente no nível do ruído de fundo E o próprio modelo suspeita
+            // que não há fala ali. Exigir concordância é o que mantém a defesa contra
+            // frases inventadas sem apagar quem fala baixo.
             let noSpeech = whisper_full_get_segment_no_speech_prob(context, index)
 
-            if level < Self.quietLevelThreshold && noSpeech > Self.noSpeechSuspicionThreshold {
+            if !gate.isLikelySpeech(from: start, to: end)
+                && noSpeech > Self.noSpeechSuspicionThreshold {
                 Diagnostics.log(String(
-                    format: "descartado %.2fs–%.2fs: nível %.2f, não-fala %.2f — %@",
-                    start, end, level, noSpeech,
+                    format: "descartado %.2fs–%.2fs: %.1fx o ruído, não-fala %.2f — %@",
+                    start, end, gate.ratio(from: start, to: end) ?? 0, noSpeech,
                     String(cString: whisper_full_get_segment_text(context, index))
                         .trimmingCharacters(in: .whitespaces)))
                 return nil
@@ -163,7 +158,7 @@ final class WhisperEngine {
 
             let text = String(cString: whisper_full_get_segment_text(context, index))
                 .trimmingCharacters(in: .whitespaces)
-            guard !text.isEmpty else { return nil }
+            guard !text.isEmpty, !Self.isNonSpeechAnnotation(text) else { return nil }
 
             return TranscriptSegment(
                 id: Int(index), start: start, end: end, text: text, track: track)
@@ -176,6 +171,22 @@ final class WhisperEngine {
         let id = whisper_full_lang_id(context)
         guard id >= 0, let name = whisper_lang_str(id) else { return "" }
         return String(cString: name)
+    }
+
+    /// Reconhece anotações de som que o Whisper emite no lugar de fala — "[SOM DE TAPE]",
+    /// "(música)", "[BLANK_AUDIO]".
+    ///
+    /// Não são transcrição, são o modelo descrevendo o que ouviu. Numa ata de reunião só
+    /// poluem. O teste é conservador: descarta apenas quando o segmento **inteiro** é a
+    /// anotação, então uma fala real que por acaso contenha parênteses continua intacta.
+    private static func isNonSpeechAnnotation(_ text: String) -> Bool {
+        let pairs: [(Character, Character)] = [("[", "]"), ("(", ")"), ("*", "*")]
+        guard let first = text.first, let last = text.last else { return false }
+        guard pairs.contains(where: { $0.0 == first && $0.1 == last }) else { return false }
+
+        // Um parêntese fechando logo no fim garante que não há texto fora dele.
+        let inner = text.dropFirst().dropLast()
+        return !inner.contains(where: { $0 == "[" || $0 == "(" })
     }
 
     // MARK: - Leitura do áudio

@@ -37,13 +37,19 @@ for lproj in "$ROOT"/Resources/*.lproj; do
     [ -d "$lproj" ] && cp -R "$lproj" "$RESOURCES/"
 done
 
-# Modelos embarcados: o de transcrição (~514MB) e o de detecção de fala (~864KB).
-# Baixados por scripts/fetch-model.sh; copiamos os que estiverem presentes.
+# Modelos embarcados: transcrição (~514MB), detecção de fala (~864KB) e diarização
+# (~21MB). Baixados por scripts/fetch-model.sh; copiamos os que estiverem presentes.
 for model in "$ROOT"/Resources/Models/*.bin; do
     [ -f "$model" ] || continue
     echo "▸ Embarcando $(basename "$model") ($(du -h "$model" | cut -f1))"
     cp "$model" "$RESOURCES/"
 done
+
+# Modelos CoreML de diarização. Vão como diretório porque .mlmodelc é um pacote.
+if [ -d "$ROOT/Resources/Models/FluidAudio" ]; then
+    echo "▸ Embarcando modelos de diarização ($(du -sh "$ROOT/Resources/Models/FluidAudio" | cut -f1))"
+    cp -R "$ROOT/Resources/Models/FluidAudio" "$RESOURCES/"
+fi
 
 echo "▸ Gerando Info.plist"
 cat > "$CONTENTS/Info.plist" <<PLIST

@@ -1,30 +1,34 @@
 import Accelerate
 import Foundation
 
-/// Distingue fala de ruído de fundo pela energia do sinal, relativa à própria gravação.
+/// Distingue fala de ruído de fundo comparando cada trecho com o **piso de ruído** da
+/// própria gravação.
 ///
-/// Existe por um problema concreto observado nas gravações de teste: o microfone capta
-/// ruído de sala continuamente (ventoinha, teclado, ambiente) e o Whisper, ao receber
-/// esse ruído, **inventa frases plausíveis** para ele — inclusive frases que ninguém
-/// disse. Numa ata de reunião isso é o pior tipo de erro: o leitor não tem como saber
-/// que é falso.
+/// Existe por um problema concreto: o Whisper, ao receber ruído de sala, inventa frases
+/// plausíveis para ele — inclusive frases que ninguém disse. Numa ata de reunião isso é o
+/// pior tipo de erro, porque o leitor não tem como saber que é falso.
 ///
-/// O critério é relativo, não absoluto: comparamos cada trecho com o nível de fala da
-/// própria trilha. Assim funciona igual para quem fala alto ou baixo, com microfone bom
-/// ou ruim, em sala silenciosa ou barulhenta — sem nenhum número mágico calibrado para
-/// um equipamento específico.
+/// **O critério é o piso de ruído, não o nível de fala.** A primeira versão comparava
+/// cada trecho com o percentil 90 da trilha, ou seja, com o participante mais alto — e
+/// descartava sistematicamente quem falava mais baixo. Numa reunião real isso apaga
+/// pessoas inteiras da transcrição: num teste, duas das quatro falas sumiram porque uma
+/// das vozes era metade do volume da outra. Medir a distância até o silêncio, e não até o
+/// mais alto, trata todos os participantes igualmente.
 struct NoiseGate {
 
     private let frameEnergies: [Float]
     private let framesPerSecond: Double
-    private let speechLevel: Float
+    private let noiseFloor: Float
 
-    /// Um trecho precisa ter ao menos esta fração do nível de fala típico para ser
-    /// aceito. Fala real fica acima de 0,4 nas medições; ruído de sala, abaixo de 0,2.
-    private static let speechFraction: Float = 0.3
+    /// Quantas vezes acima do piso de ruído um trecho precisa estar para contar como fala.
+    ///
+    /// Fala fica tipicamente 10–20 dB acima do ruído ambiente; 3× (~10 dB) é o limite
+    /// inferior disso, escolhido do lado permissivo de propósito. Uma frase perdida é
+    /// invisível e irrecuperável; uma frase inventada é visível e corrigível.
+    private static let floorMultiple: Float = 3
 
-    /// Duração da janela de análise. 50 ms é curto o bastante para não borrar o começo
-    /// de uma frase e longo o bastante para não oscilar com cada período da onda.
+    /// Duração da janela de análise. 50 ms é curto o bastante para não borrar o começo de
+    /// uma frase e longo o bastante para não oscilar com cada período da onda.
     private static let frameDuration = 0.05
 
     init(samples: [Float], sampleRate: Double) {
@@ -46,36 +50,36 @@ struct NoiseGate {
         }
         frameEnergies = energies
 
-        // Nível de fala = percentil 90 das janelas. A mediana seria puxada para baixo
-        // pelos silêncios, que dominam qualquer gravação de reunião; o máximo seria
-        // sensível a um único estalo.
+        // Piso de ruído = percentil 10 das janelas. Numa reunião os silêncios dominam, de
+        // modo que o decil inferior descreve bem o fundo. O mínimo seria zero em qualquer
+        // trilha com silêncio digital — que é o caso da captura do sistema.
         let sorted = energies.sorted()
-        speechLevel = sorted.isEmpty
+        noiseFloor = sorted.isEmpty
             ? 0
-            : sorted[min(sorted.count - 1, Int(Double(sorted.count) * 0.9))]
+            : sorted[min(sorted.count - 1, Int(Double(sorted.count) * 0.1))]
     }
 
     func isLikelySpeech(from start: TimeInterval, to end: TimeInterval) -> Bool {
-        ratio(from: start, to: end).map { $0 >= Self.speechFraction } ?? true
+        // Piso zero significa silêncio digital no fundo — típico da trilha do sistema,
+        // que vem de um tap sem ruído analógico. Ali não há ruído a filtrar, e qualquer
+        // corte seria arbitrário.
+        guard noiseFloor > 0 else { return true }
+        return ratio(from: start, to: end).map { $0 >= Self.floorMultiple } ?? true
     }
 
-    /// Nível do trecho como fração do nível de fala da trilha. Exposto para o log de
-    /// diagnóstico: é com esses números que o limiar se calibra em gravações reais, em
-    /// vez de por tentativa e erro.
+    /// Quantas vezes o trecho está acima do piso de ruído. Exposto para o diagnóstico:
+    /// é com esses números que o limiar se calibra em gravações reais.
     func ratio(from start: TimeInterval, to end: TimeInterval) -> Float? {
-        guard speechLevel > 0, !frameEnergies.isEmpty else { return nil }
+        guard noiseFloor > 0, !frameEnergies.isEmpty else { return nil }
 
         let first = max(0, Int(start * framesPerSecond))
         let last = min(frameEnergies.count, Int(end * framesPerSecond))
         guard first < last else { return nil }
 
-        // Mediana, e não pico. O pico parecia a escolha óbvia — preserva frases curtas
-        // entre pausas — mas falha justamente no caso que motivou este código: o Whisper
-        // emite um segmento longo que *começa* no fim de uma fala e segue por segundos de
-        // ruído. O pico herda a fala e o trecho inteiro passa. A mediana descreve o que o
-        // segmento é na maior parte do tempo, que é o que queremos julgar.
+        // Mediana, e não pico. O Whisper emite segmentos longos que *começam* no fim de
+        // uma fala e seguem por segundos de ruído; o pico herdaria a fala e o trecho
+        // inteiro passaria. A mediana descreve o que o segmento é na maior parte do tempo.
         let window = frameEnergies[first..<last].sorted()
-        let median = window[window.count / 2]
-        return median / speechLevel
+        return window[window.count / 2] / noiseFloor
     }
 }

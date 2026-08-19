@@ -68,6 +68,18 @@ final class ModelManager {
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
+    /// Diretório com os modelos CoreML de diarização, embarcados no `.app` (~21 MB).
+    ///
+    /// A FluidAudio baixaria da HuggingFace no primeiro uso se deixássemos; apontar para o
+    /// bundle e ligar o modo offline é o que faz o app funcionar sem rede na máquina de
+    /// quem recebe o `.dmg`.
+    var diarizationModels: URL? {
+        guard let resources = Bundle.main.resourceURL else { return nil }
+        let directory = resources.appendingPathComponent("FluidAudio", isDirectory: true)
+        let repository = directory.appendingPathComponent("speaker-diarization", isDirectory: true)
+        return FileManager.default.fileExists(atPath: repository.path) ? directory : nil
+    }
+
     /// O modelo que viaja dentro do .app.
     var bundledModel: URL? {
         guard let url = Bundle.main.url(

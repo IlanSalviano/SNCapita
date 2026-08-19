@@ -34,6 +34,7 @@ enum S {
     static var playbackFailed: String { t("library.playback_failed") }
     static var speakerYou: String { t("speaker.you") }
     static var speakerOthers: String { t("speaker.others") }
+    static var participants: String { t("speaker.participants") }
 
     /// Duração no formato mm:ss, usada na lista de gravações.
     static func duration(_ seconds: TimeInterval) -> String {

@@ -20,6 +20,12 @@ struct RecordingDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let transcript, !transcript.speakerIDs.isEmpty {
+                SpeakerBar(recordingID: recording.id, transcript: transcript) {
+                    self.transcript = state.transcription.transcript(for: recording.id)
+                }
+                Divider().overlay(Design.Palette.separator)
+            }
             transcriptArea
             Divider().overlay(Design.Palette.separator)
             playerBar
@@ -67,6 +73,8 @@ struct RecordingDetailView: View {
                     ForEach(transcript.segments) { segment in
                         SegmentRow(
                             segment: segment,
+                            speakerLabel: transcript.speakerLabel(
+                                for: segment, you: S.speakerYou, fallback: S.speakerOthers),
                             isActive: segment.id == activeSegmentID,
                             onTap: { player.seek(to: segment.start) })
                         .id(segment.id)
@@ -130,9 +138,76 @@ struct RecordingDetailView: View {
     }
 }
 
+/// Barra de participantes, com nomes editáveis.
+///
+/// A diarização agrupa as vozes mas entrega rótulos anônimos — "S1", "S2". Ela também
+/// erra: mesmo no estado da arte, parte dos turnos vai para o grupo errado. Poder nomear
+/// não é um enfeite: é o que transforma um agrupamento estatístico numa ata legível.
+private struct SpeakerBar: View {
+    let recordingID: UUID
+    let transcript: Transcript
+    let onChange: () -> Void
+
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Text(S.participants)
+                    .font(Design.Typography.caption)
+                    .foregroundStyle(Design.Palette.secondaryLabel)
+
+                ForEach(transcript.speakerIDs, id: \.self) { id in
+                    SpeakerChip(
+                        id: id,
+                        name: transcript.speakerNames[id] ?? "",
+                        placeholder: id
+                    ) { newName in
+                        state.transcription.rename(speaker: id, to: newName, in: recordingID)
+                        onChange()
+                    }
+                }
+            }
+            .padding(.horizontal, Design.Metrics.padding)
+            .padding(.vertical, 10)
+        }
+    }
+}
+
+private struct SpeakerChip: View {
+    let id: String
+    let name: String
+    let placeholder: String
+    let onCommit: (String) -> Void
+
+    @State private var draft: String = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField(placeholder, text: $draft)
+            .textFieldStyle(.plain)
+            .font(Design.Typography.caption)
+            .frame(width: 90)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule().fill(Design.Palette.label.opacity(isFocused ? 0.12 : 0.06))
+            )
+            .focused($isFocused)
+            .onAppear { draft = name }
+            // Confirmamos ao sair do campo, não a cada tecla: salvar por caractere
+            // reescreveria o transcript.json dezenas de vezes por nome digitado.
+            .onSubmit { onCommit(draft) }
+            .onChange(of: isFocused) { _, focused in
+                if !focused { onCommit(draft) }
+            }
+    }
+}
+
 /// Uma fala do transcript.
 private struct SegmentRow: View {
     let segment: TranscriptSegment
+    let speakerLabel: String
     let isActive: Bool
     let onTap: () -> Void
 
@@ -147,12 +222,13 @@ private struct SegmentRow: View {
                     .foregroundStyle(Design.Palette.secondaryLabel)
                     .frame(width: 48, alignment: .trailing)
 
-                // Quem falou. Vem da trilha de origem, não de diarização: o que entrou
-                // pelo microfone é você, o que saiu pelos alto-falantes são os outros.
-                Text(segment.track == .mic ? S.speakerYou : S.speakerOthers)
+                // Quem falou. A trilha de origem já resolve "você × os outros"; entre os
+                // outros, quem é quem vem da diarização.
+                Text(speakerLabel)
                     .font(Design.Typography.caption)
                     .foregroundStyle(Design.Palette.secondaryLabel)
-                    .frame(width: 56, alignment: .leading)
+                    .frame(width: 72, alignment: .leading)
+                    .lineLimit(1)
 
                 Text(segment.text)
                     .font(Design.Typography.body)

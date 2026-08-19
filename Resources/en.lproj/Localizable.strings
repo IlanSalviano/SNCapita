@@ -21,6 +21,7 @@
 "library.not_transcribed" = "Not transcribed";
 "library.transcription_pending" = "Transcription starts automatically when recording ends.";
 "library.playback_failed" = "Playback failed";
+"speaker.participants" = "Participants";
 "speaker.you" = "You";
 "speaker.others" = "Others";
 

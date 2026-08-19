@@ -25,6 +25,28 @@ final class TranscriptionService {
         return try? decoder.decode(Transcript.self, from: data)
     }
 
+    /// Renomeia um participante e persiste a mudança.
+    ///
+    /// A diarização entrega "S1", "S2" — ela agrupa as vozes mas não tem como saber os
+    /// nomes. Sem esta correção, o transcript nunca vira uma ata que alguém consiga ler.
+    func rename(speaker id: String, to name: String, in recordingID: UUID) {
+        guard var transcript = transcript(for: recordingID) else { return }
+
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            transcript.speakerNames.removeValue(forKey: id)
+        } else {
+            transcript.speakerNames[id] = trimmed
+        }
+
+        try? save(transcript, for: recordingID)
+        renameCounter += 1
+    }
+
+    /// Muda a cada renomeação para que as views observem e se redesenhem — o transcript
+    /// em si vive em disco, não em memória observável.
+    private(set) var renameCounter = 0
+
     func hasTranscript(for id: UUID) -> Bool {
         FileManager.default.fileExists(atPath: Self.transcriptURL(for: id).path)
     }
@@ -70,6 +92,8 @@ final class TranscriptionService {
         guard !tracks.isEmpty else { return }
 
         let vadURL = ModelManager.shared.vadModel
+        let diarizationModels = ModelManager.shared.diarizationModels
+        let systemTrackURL = directory.appendingPathComponent("system.wav")
         let started = Date()
         let result = try await Task.detached(priority: .utility) {
             // O whisper_context não é seguro entre threads; criamos um por trabalho e o
@@ -110,10 +134,22 @@ final class TranscriptionService {
                 createdAt: Date())
         }.value
 
-        try save(result, for: id)
+        // Diarização depois da transcrição, e não antes: se ela falhar ou demorar, ainda
+        // temos um transcript utilizável para salvar — só sem os rótulos de participante.
+        var final = result
+        if FileManager.default.fileExists(atPath: systemTrackURL.path) {
+            let turns = await SpeakerDiarizer.turns(
+                in: systemTrackURL, modelsDirectory: diarizationModels)
+            final.segments = SpeakerDiarizer.assign(result.segments, turns: turns)
+
+            let speakers = Set(turns.map(\.speakerID)).count
+            Diagnostics.log("diarização: \(speakers) participante(s) em \(turns.count) turnos")
+        }
+
+        try save(final, for: id)
         Diagnostics.log(
-            "transcrição pronta (\(id)): \(result.segments.count) segmentos, "
-            + "idioma \(result.language), \(String(format: "%.1f", Date().timeIntervalSince(started)))s")
+            "transcrição pronta (\(id)): \(final.segments.count) segmentos, "
+            + "idioma \(final.language), \(String(format: "%.1f", Date().timeIntervalSince(started)))s")
     }
 
     private func save(_ transcript: Transcript, for id: UUID) throws {

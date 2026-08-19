@@ -21,6 +21,7 @@
 "library.not_transcribed" = "Sem transcrição";
 "library.transcription_pending" = "A transcrição começa automaticamente ao fim da gravação.";
 "library.playback_failed" = "Não foi possível reproduzir";
+"speaker.participants" = "Participantes";
 "speaker.you" = "Você";
 "speaker.others" = "Outros";
 
