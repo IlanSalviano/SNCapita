@@ -63,10 +63,15 @@ O app aparece na **barra de menus**, não no Dock.
 Capita --smoke-record 8     # grava e valida as trilhas
 Capita --smoke-transcribe   # transcreve a gravação mais recente e imprime
 Capita --smoke-engines      # detecta e testa o motor de IA
+Capita --smoke-summarize    # resume e imprime a ata inteira (--force regera)
 Capita --smoke-export       # mixa, exporta tudo para /tmp e confere
 Capita --open-library       # abre a biblioteca direto
 log stream --predicate 'subsystem == "com.ilansalviano.capita"'
 ```
+
+O `--smoke-summarize` só regera com `--force`: resumir uma reunião longa leva minutos e,
+no Claude Code, custa dinheiro. Sem a flag ele mostra o resumo salvo e diz se ainda
+corresponde ao transcript atual.
 
 ---
 
@@ -78,7 +83,8 @@ log stream --predicate 'subsystem == "com.ilansalviano.capita"'
 │   ├── system.wav        os outros participantes (16 kHz mono)
 │   ├── mic.wav           você
 │   ├── metadata.json
-│   └── transcript.json
+│   ├── transcript.json
+│   └── summary.json      a ata gerada pela IA, em cache
 └── Models/               modelos baixados (têm precedência sobre o embarcado)
 ```
 

@@ -13,26 +13,43 @@ struct RecordingDetailView: View {
     @State private var player = PlayerController()
     @State private var transcript: Transcript?
     @State private var loadError: String?
+    @State private var tab: Tab = .transcript
+
+    private enum Tab: Hashable { case transcript, summary }
+
     private var activeSegmentID: Int? {
         transcript?.indexOfSegment(at: player.currentTime)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            if let transcript, !transcript.speakerIDs.isEmpty {
-                SpeakerBar(recordingID: recording.id, transcript: transcript) {
-                    reloadTranscript()
-                }
-                Divider().overlay(Design.Palette.separator)
-            }
-            transcriptArea
+            tabBar
             Divider().overlay(Design.Palette.separator)
+
+            switch tab {
+            case .transcript:
+                if let transcript, !transcript.speakerIDs.isEmpty {
+                    SpeakerBar(recordingID: recording.id, transcript: transcript) {
+                        reloadTranscript()
+                    }
+                    Divider().overlay(Design.Palette.separator)
+                }
+                transcriptArea
+            case .summary:
+                SummaryPane(recording: recording, transcript: transcript,
+                            onSpeakersRenamed: reloadTranscript)
+            }
+
+            Divider().overlay(Design.Palette.separator)
+            // A barra do player fica nas duas abas. Uma citação no resumo perde metade da
+            // graça se ouvir o trecho exigir voltar para a transcrição primeiro.
             playerBar
         }
         .navigationTitle(recording.title)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                ExportMenu(recording: recording, transcript: transcript)
+                ExportMenu(recording: recording, transcript: transcript,
+                           summary: state.summaries.summary(for: recording.id))
             }
         }
         .task(id: recording.id) { load() }
@@ -41,6 +58,18 @@ struct RecordingDetailView: View {
         .onChange(of: state.transcription.currentRecordingID) { _, _ in
             if transcript == nil { transcript = state.transcription.transcript(for: recording.id) }
         }
+    }
+
+    private var tabBar: some View {
+        Picker("", selection: $tab) {
+            Text(S.tabTranscript).tag(Tab.transcript)
+            Text(S.tabSummary).tag(Tab.summary)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 240)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
     }
 
     private func reloadTranscript() {
@@ -154,6 +183,7 @@ struct RecordingDetailView: View {
 private struct ExportMenu: View {
     let recording: Recording
     let transcript: Transcript?
+    let summary: MeetingSummary?
 
     @Environment(AppState.self) private var state
 
@@ -163,6 +193,17 @@ private struct ExportMenu: View {
                 state.export.exportPackage(recording, transcript: transcript)
             }
             Button(S.exportAudio) { state.export.exportAudio(recording) }
+
+            if let summary {
+                Button(S.exportSummary) {
+                    state.export.exportSummary(recording, summary: summary)
+                }
+                if summary.infographic?.blocks.isEmpty == false {
+                    Button(S.exportInfographic) {
+                        state.export.exportInfographic(recording, summary: summary)
+                    }
+                }
+            }
 
             if let transcript {
                 Menu(S.exportTranscript) {

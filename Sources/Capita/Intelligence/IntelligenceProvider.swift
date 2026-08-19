@@ -74,4 +74,69 @@ extension String {
         return String(withoutFence[..<end.lowerBound])
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// Escapa aspas que ficaram soltas dentro de strings JSON.
+    ///
+    /// É o jeito mais comum de um modelo quebrar um JSON válido, porque não é um erro de
+    /// formato — é um erro de citação. Ele escreve `"de \"me diga o que você fez\" para..."`
+    /// sem as barras, e o arquivo inteiro se perde por causa de um par de aspas no meio de
+    /// um parágrafo. Pedir no prompt para usar aspas curvas resolve na maioria das vezes;
+    /// isto cobre o resto, e evita descartar uma geração que levou minutos.
+    ///
+    /// A decisão é de contexto: uma aspa dentro de uma string só encerra a string se o que
+    /// vem depois puder mesmo seguir uma string — `:`, `}`, `]`, ou uma vírgula seguida do
+    /// começo de outro valor. Qualquer outra coisa é citação, e leva barra.
+    var repairingUnescapedQuotes: String {
+        var out = ""
+        var insideString = false
+        var escaped = false
+
+        let characters = Array(self)
+        for (index, character) in characters.enumerated() {
+            if escaped {
+                out.append(character)
+                escaped = false
+                continue
+            }
+            switch character {
+            case "\\" where insideString:
+                escaped = true
+                out.append(character)
+            case "\"":
+                if !insideString {
+                    insideString = true
+                    out.append(character)
+                } else if Self.closesString(characters, after: index) {
+                    insideString = false
+                    out.append(character)
+                } else {
+                    out.append("\\\"")
+                }
+            default:
+                out.append(character)
+            }
+        }
+        return out
+    }
+
+    private static func closesString(_ characters: [Character], after index: Int) -> Bool {
+        var cursor = index + 1
+        while cursor < characters.count, characters[cursor].isWhitespace { cursor += 1 }
+        guard cursor < characters.count else { return true }
+
+        switch characters[cursor] {
+        case ":", "}", "]":
+            return true
+        case ",":
+            // Uma vírgula só encerra de verdade se abrir outro valor logo em seguida.
+            // `"ele disse "oi", e saiu"` cai aqui: depois da vírgula vem texto, não um
+            // novo campo, então a aspa era citação.
+            var next = cursor + 1
+            while next < characters.count, characters[next].isWhitespace { next += 1 }
+            guard next < characters.count else { return true }
+            return "\"{[".contains(characters[next])
+        default:
+            return false
+        }
+    }
 }

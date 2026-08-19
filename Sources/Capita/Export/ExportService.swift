@@ -86,6 +86,33 @@ final class ExportService {
         }
     }
 
+    func exportSummary(_ recording: Recording, summary: MeetingSummary) {
+        guard let url = chooseFile(name: "\(baseName(for: recording)) — resumo.md",
+                                   type: UTType(filenameExtension: "md") ?? .plainText)
+        else { return }
+        do {
+            try SummaryExporter.markdown(summary, recording: recording)
+                .write(to: url, atomically: true, encoding: .utf8)
+            lastExport = url
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func exportInfographic(_ recording: Recording, summary: MeetingSummary) {
+        guard let graphic = summary.infographic, !graphic.blocks.isEmpty,
+              let url = chooseFile(name: "\(baseName(for: recording)).png", type: .png)
+        else { return }
+        do {
+            try SummaryExporter.writePNG(graphic, title: summary.title, to: url)
+            lastExport = url
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     func revealLastExport() {
         guard let lastExport else { return }
         NSWorkspace.shared.activateFileViewerSelecting([lastExport])

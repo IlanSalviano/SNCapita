@@ -143,6 +143,151 @@ enum SmokeTest {
         }
     }
 
+    /// `Capita --smoke-summarize [prefixo-do-id]` resume uma gravação e imprime o
+    /// resultado inteiro.
+    ///
+    /// É o único jeito honesto de avaliar um resumo: lendo. Um teste que só conferisse
+    /// "o JSON parseou" passaria com um resumo genérico, que é justamente o modo de falha
+    /// que importa aqui.
+    static var wantsSummarize: Bool {
+        CommandLine.arguments.contains("--smoke-summarize")
+    }
+
+    static func runSummarize(state: AppState) {
+        let all = RecordingStore.shared.loadAll()
+        let requested = CommandLine.arguments
+            .drop { $0 != "--smoke-summarize" }.dropFirst().first
+        let chosen = requested.flatMap { prefix in
+            all.first { $0.id.uuidString.lowercased().hasPrefix(prefix.lowercased()) }
+        }
+
+        guard let recording = chosen ?? all.first else {
+            fail("nenhuma gravação encontrada")
+            return
+        }
+        guard let transcript = state.transcription.transcript(for: recording.id) else {
+            fail("essa gravação ainda não foi transcrita")
+            return
+        }
+
+        Task { @MainActor in
+            let script = Summarizer.script(from: transcript)
+            print("▸ Gravação \(recording.id) (\(String(format: "%.1f", recording.duration))s)")
+            print("  \(transcript.segments.count) segmentos → \(script.count) caracteres de diálogo")
+
+            // Resumir custa minutos e, no Claude Code, dinheiro. Se já existe um resumo
+            // válido, mostrá-lo é o comportamento certo — `--force` regera de propósito.
+            let expected = Summarizer.hash(script, template: state.summaries.template)
+            if let saved = state.summaries.summary(for: recording.id),
+               !CommandLine.arguments.contains("--force") {
+                let fresh = saved.transcriptHash == expected
+                print("  resumo salvo: \(fresh ? "válido" : "desatualizado")")
+                if !fresh {
+                    print("    salvo:     \(saved.transcriptHash.prefix(16))… (\(saved.templateID))")
+                    print("    esperado:  \(expected.prefix(16))… (\(state.summaries.template.rawValue))")
+                }
+                print()
+                print(render(saved))
+                print("\n✓ SUCESSO (use --force para gerar de novo)")
+                NSApp.terminate(nil)
+                return
+            }
+
+            await state.intelligence.detect()
+            print("  motor: \(state.intelligence.activeDescription)\n")
+
+            let started = Date()
+            do {
+                let summary = try await Summarizer.summarize(
+                    transcript: transcript, recording: recording,
+                    template: state.summaries.template,
+                    engine: state.intelligence,
+                    progress: { print("  \($0)") })
+
+                print("\n  respondeu em \(String(format: "%.1f", Date().timeIntervalSince(started)))s\n")
+                print(render(summary))
+
+                // Salva junto: um resumo que custou minutos e dinheiro não deve morrer com
+                // o processo do teste. Depois disto ele aparece na biblioteca.
+                try state.summaries.store(summary, for: recording.id)
+
+                // O que separa um resumo útil de um enfeite: seções e o infográfico.
+                // Sem eles o JSON parseia e a tela fica vazia.
+                guard !summary.sections.isEmpty else {
+                    fail("o resumo veio sem seções")
+                    return
+                }
+                print("\n✓ SUCESSO")
+                NSApp.terminate(nil)
+            } catch {
+                fail(error.localizedDescription)
+            }
+        }
+    }
+
+    private static func render(_ summary: MeetingSummary) -> String {
+        var out = ["# \(summary.title)", "", summary.overview, ""]
+
+        if !summary.speakerNames.isEmpty {
+            out.append("Locutores identificados: "
+                       + summary.speakerNames.map { "\($0.key) → \($0.value)" }
+                           .sorted().joined(separator: ", "))
+            out.append("")
+        }
+
+        for section in summary.sections {
+            out.append("## \(section.heading)")
+            out.append(section.body)
+            out.append("")
+        }
+
+        if !summary.decisions.isEmpty {
+            out.append("## Decisões")
+            for decision in summary.decisions {
+                out.append("• \(decision.text)")
+                if !decision.rationale.isEmpty { out.append("    ↳ \(decision.rationale)") }
+            }
+            out.append("")
+        }
+
+        if !summary.actionItems.isEmpty {
+            out.append("## Próximos passos")
+            for group in summary.actionItemsByOwner {
+                out.append("@\(group.owner)")
+                for item in group.items {
+                    let due = item.due.isEmpty ? "" : "  [\(item.due)]"
+                    out.append("  • \(item.text)\(due)")
+                }
+            }
+            out.append("")
+        }
+
+        if let map = summary.mindMap {
+            out.append("## Mapa mental")
+            out.append(contentsOf: outline(map, depth: 0))
+            out.append("")
+        }
+
+        if let graphic = summary.infographic {
+            out.append("## Infográfico — \(graphic.headline)")
+            out.append(graphic.subhead)
+            for block in graphic.blocks {
+                out.append("  ┌ \(block.title)  (\(block.kind.rawValue), \(block.icon.rawValue))")
+                for item in block.items {
+                    let label = item.label.isEmpty ? "" : "\(item.label) — "
+                    let badge = item.badge.isEmpty ? "" : "  «\(item.badge)»"
+                    out.append("  │ \(label)\(item.text)\(badge)")
+                }
+            }
+        }
+        return out.joined(separator: "\n")
+    }
+
+    private static func outline(_ node: MeetingSummary.MindNode, depth: Int) -> [String] {
+        let line = String(repeating: "  ", count: depth) + "• " + node.label
+        return [line] + node.children.flatMap { outline($0, depth: depth + 1) }
+    }
+
     /// `Capita --smoke-export [prefixo-do-id]` exporta a gravação para /tmp e confere o
     /// resultado. Mede o que a interface esconde: o tamanho do arquivo e o tempo de mixagem.
     static var wantsExport: Bool {
@@ -209,6 +354,30 @@ enum SmokeTest {
             }
         } else {
             print("  (sem transcrição salva; só o áudio foi exportado)")
+        }
+
+        if let summary = state.summaries.summary(for: recording.id) {
+            let markdown = SummaryExporter.markdown(summary, recording: recording)
+            try? markdown.write(to: folder.appendingPathComponent("resumo.md"),
+                                atomically: true, encoding: .utf8)
+            print("  ✓ Resumo (.md) — \(format(bytes: markdown.utf8.count))")
+
+            if let graphic = summary.infographic, !graphic.blocks.isEmpty {
+                let png = folder.appendingPathComponent("infografico.png")
+                do {
+                    try SummaryExporter.writePNG(graphic, title: summary.title, to: png)
+                    let size = (try? FileManager.default.attributesOfItem(atPath: png.path)[.size])
+                        .flatMap { $0 as? Int } ?? 0
+                    print("  ✓ Infográfico (.png) — \(format(bytes: size))")
+                    if size < 10_000 {
+                        fail("o PNG do infográfico saiu vazio")
+                        return
+                    }
+                } catch {
+                    fail(error.localizedDescription)
+                    return
+                }
+            }
         }
 
         print("\n  pasta: \(folder.path)")

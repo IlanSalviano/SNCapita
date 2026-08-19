@@ -1,4 +1,5 @@
-.PHONY: help build app dmg install run stop spike-tap smoke-record smoke-export icon signing-cert clean check
+.PHONY: help build app dmg install run stop spike-tap smoke-record smoke-export \
+        smoke-summarize icon signing-cert clean check
 
 APP      := build/Capita.app
 INSTALLED := $(HOME)/Applications/Capita.app
@@ -9,6 +10,7 @@ help:
 	@echo "  make spike-tap     Prova que a captura de áudio funciona sem admin"
 	@echo "  make smoke-record  Grava 8s de verdade e confere as duas trilhas"
 	@echo "  make smoke-export  Mixa e exporta a gravação mais recente para /tmp"
+	@echo "  make smoke-summarize  Mostra a ata da gravação mais recente"
 	@echo "  make app           Compila e monta Capita.app"
 	@echo "  make install       Instala em ~/Applications (sem admin)"
 	@echo "  make run           Instala e abre"
@@ -37,6 +39,11 @@ smoke-record: install
 smoke-export: install
 	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
 	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-export
+
+# Sem --force apenas mostra a ata salva: resumir custa minutos e, no Claude Code, dinheiro.
+smoke-summarize: install
+	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
+	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-summarize $(ARGS)
 
 icon:
 	@swift scripts/make-icon.swift Resources/AppIcon.icns

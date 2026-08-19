@@ -45,6 +45,12 @@ enum Design {
         static let label = Color.primary
         static let secondaryLabel = Color.secondary
         static let separator = Color(nsColor: .separatorColor)
+
+        /// Fundo de cartão. Tramado a partir da cor de texto, e não uma cinza fixa, para
+        /// continuar sutil nos dois temas — um cinza claro literal vira uma mancha
+        /// brilhante no modo escuro.
+        static let card = Color.primary.opacity(0.045)
+        static let cardBorder = Color.primary.opacity(0.09)
     }
 
     enum Typography {
@@ -52,6 +58,13 @@ enum Design {
         static let button = Font.system(size: 14, weight: .semibold)
         static let body = Font.system(size: 12)
         static let caption = Font.system(size: 11)
+
+        // Leitura longa. O resumo é o único lugar do app com parágrafos de verdade, e os
+        // 12pt que servem a uma lista de gravações cansam num texto de duas mil palavras.
+        static let displayTitle = Font.system(size: 24, weight: .semibold)
+        static let sectionHeading = Font.system(size: 15, weight: .semibold)
+        static let prose = Font.system(size: 13)
+        static let statValue = Font.system(size: 19, weight: .semibold)
     }
 }
 

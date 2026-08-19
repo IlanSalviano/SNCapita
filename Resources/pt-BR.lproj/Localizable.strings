@@ -26,12 +26,44 @@
 "speaker.you" = "Você";
 "speaker.others" = "Outros";
 
+/* Resumo */
+"summary.tab_transcript" = "Transcrição";
+"summary.tab_summary" = "Resumo";
+"summary.generate" = "Gerar resumo";
+"summary.regenerate" = "Gerar de novo";
+"summary.working" = "Lendo a reunião…";
+"summary.working_part" = "Lendo a parte %d de %d…";
+"summary.working_final" = "Escrevendo a ata…";
+"summary.none" = "Sem resumo ainda";
+"summary.none_hint" = "O resumo é gerado sob demanda, com o motor de IA da sua máquina.";
+"summary.stale" = "A transcrição mudou depois deste resumo.";
+"summary.failed" = "Não foi possível resumir";
+"summary.decisions" = "Decisões";
+"summary.action_items" = "Próximos passos";
+"summary.unassigned" = "Sem responsável";
+"summary.mind_map" = "Mapa mental";
+"summary.template" = "Tipo de reunião";
+"summary.needs_transcript" = "A transcrição precisa terminar antes do resumo.";
+"summary.suggested_names" = "Nomes identificados na conversa: %@";
+"summary.apply_names" = "Aplicar";
+"summary.generated_by" = "Gerado por %1$@ em %2$@";
+
+/* Modelos de resumo */
+"template.automatic" = "Detectar automaticamente";
+"template.general" = "Reunião de trabalho";
+"template.one_on_one" = "1:1 ou mentoria";
+"template.client" = "Cliente ou prospect";
+"template.technical" = "Discussão técnica";
+"template.lecture" = "Aula ou apresentação";
+
 /* Exportação */
 "export.menu" = "Exportar";
 "export.package" = "Áudio + transcrição…";
 "export.audio" = "Somente o áudio (M4A)…";
 "export.tracks" = "Trilhas separadas (WAV)…";
 "export.transcript" = "Transcrição";
+"export.summary" = "Resumo (.md)…";
+"export.infographic" = "Infográfico (.png)…";
 "export.here" = "Exportar aqui";
 "export.folder_prompt" = "Escolha a pasta onde salvar os arquivos.";
 "export.exporting" = "Exportando…";

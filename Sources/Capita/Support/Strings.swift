@@ -36,12 +36,56 @@ enum S {
     static var speakerOthers: String { t("speaker.others") }
     static var participants: String { t("speaker.participants") }
 
+    // Resumo
+    static var tabTranscript: String { t("summary.tab_transcript") }
+    static var tabSummary: String { t("summary.tab_summary") }
+    static var generateSummary: String { t("summary.generate") }
+    static var regenerateSummary: String { t("summary.regenerate") }
+    static var summarizing: String { t("summary.working") }
+    static var summarizingFinal: String { t("summary.working_final") }
+    static var noSummary: String { t("summary.none") }
+    static var noSummaryHint: String { t("summary.none_hint") }
+    static var summaryStale: String { t("summary.stale") }
+    static var summaryFailed: String { t("summary.failed") }
+    static var decisions: String { t("summary.decisions") }
+    static var actionItems: String { t("summary.action_items") }
+    static var unassigned: String { t("summary.unassigned") }
+    static var mindMap: String { t("summary.mind_map") }
+    static var summaryTemplate: String { t("summary.template") }
+    static var needsTranscript: String { t("summary.needs_transcript") }
+
+    static var applyNames: String { t("summary.apply_names") }
+
+    static func summarizingPart(_ index: Int, _ total: Int) -> String {
+        String(format: t("summary.working_part"), index, total)
+    }
+
+    static func suggestedNames(_ list: String) -> String {
+        String(format: t("summary.suggested_names"), list)
+    }
+
+    static func generatedBy(_ engine: String, _ date: Date) -> String {
+        let stamp = DateFormatter.localizedString(
+            from: date, dateStyle: .medium, timeStyle: .short)
+        return String(format: t("summary.generated_by"), engine, stamp)
+    }
+
+    // Modelos de resumo
+    static var templateAutomatic: String { t("template.automatic") }
+    static var templateGeneral: String { t("template.general") }
+    static var templateOneOnOne: String { t("template.one_on_one") }
+    static var templateClient: String { t("template.client") }
+    static var templateTechnical: String { t("template.technical") }
+    static var templateLecture: String { t("template.lecture") }
+
     // Exportação
     static var export: String { t("export.menu") }
     static var exportPackage: String { t("export.package") }
     static var exportAudio: String { t("export.audio") }
     static var exportTracks: String { t("export.tracks") }
     static var exportTranscript: String { t("export.transcript") }
+    static var exportSummary: String { t("export.summary") }
+    static var exportInfographic: String { t("export.infographic") }
     static var exportHere: String { t("export.here") }
     static var exportFolderPrompt: String { t("export.folder_prompt") }
     static var exporting: String { t("export.exporting") }
