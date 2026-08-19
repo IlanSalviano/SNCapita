@@ -70,26 +70,47 @@ desligar o VAD não é opção — foi ele que garantiu zero alucinação.
 
 ---
 
-## Decisões em aberto
+## Motor de IA — decidido e implementado
 
-**1. Motor de IA para os sumários — bloqueia a Fase 4.**
-O Claude Code CLI não pode ser embarcado no `.dmg`: depende da sua conta e autenticação.
+Nada é embarcado. O app detecta o que a máquina já tem, em cascata:
 
-| Opção | Custo | Consequência |
-|---|---|---|
-| LLM local via llama.cpp | +2–4 GB no DMG | Atende "tudo embarcado"; qualidade abaixo do Claude |
-| Detectar `claude` e usar se existir | zero | Qualidade máxima na sua máquina, nada na dos outros |
-| Campo para chave de API | zero | Portátil, mas cada usuário precisa de chave paga |
+1. **Claude Code** — melhor qualidade, custo zero no instalador
+2. **Ollama** (`localhost:11434`)
+3. **LM Studio** (`localhost:1234`)
 
-**2. Notarização.** Você vai providenciar a conta Apple Developer. Sem ela o DMG não abre
-em outra máquina: o macOS 26 só oferece "Mover para o Lixo".
+O primeiro disponível vence; nos Ajustes dá para fixar outro. Os dois runtimes locais
+falam a mesma API compatível com OpenAI, então um provedor só atende ambos.
+
+Verificado nos dois caminhos: com Claude Code presente, responde em 5,9 s; escondendo-o
+(`CAPITA_CLAUDE_PATH=/nao/existe`), cai no Ollama e responde em 10,8 s. JSON válido nos dois.
+
+```bash
+Capita --smoke-engines     # detecta e testa o motor escolhido
+Capita --open-settings     # tela de Ajustes com os motores detectados
+```
+
+⚠ **Detectar o runtime não basta — é preciso escolher um modelo que caiba.** Nesta máquina
+o modelo de 30B está instalado mas pede 19,7 GB com 17,3 GB livres, e a API responde com
+erro. O app prefere o maior modelo abaixo de 45% da memória física e, se ainda assim não
+couber, tenta o próximo menor.
+
+⚠ **Um app lançado pelo Finder não herda o PATH do shell** — `which claude` não funciona
+dentro do app. Os caminhos conhecidos são procurados explicitamente.
+
+## Decisão em aberto
+
+**Notarização.** Você vai providenciar a conta Apple Developer. Sem ela o DMG não abre em
+outra máquina: o macOS 26 só oferece "Mover para o Lixo".
 
 ---
 
 ## Próximas fases
 
 - **Fase 4 — Sumários com IA**: templates por tipo de reunião, action items, decisões.
-  Depende da decisão 1.
+  A camada de motores (`Sources/Capita/Intelligence/`) já está pronta e testada; falta a
+  sumarização em si — prompts, cache por hash do transcript e a apresentação na biblioteca.
+  Lembrar de **agrupar** os pedidos num só: o Claude Code tem um piso de ~8k tokens de
+  overhead por chamada, então quatro perguntas separadas custam quatro vezes mais.
 - **Fase 5 — Ask AI (RAG)**: busca semântica com citações que saltam para o timestamp.
   Direção pesquisada: llama.cpp compartilhando o mesmo checkout do ggml + `embeddinggemma-300m`.
 - **Fase 6 — Detecção de reunião, notas, screenshots durante a call.**
