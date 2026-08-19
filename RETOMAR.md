@@ -1,13 +1,46 @@
 # Onde paramos — 19/08/2026
 
-**Fases 0 a 4 entregues.** As fases 0–3 foram validadas numa reunião real de 54 minutos; a
-Fase 4 (sumários com IA) foi construída e testada contra essa mesma gravação.
+**Fases 0 a 4 entregues**, mais exportação e a correção de um bug de captura que corrompia
+gravações em silêncio. Validado em duas reuniões reais, de 54 e de 68 minutos.
 
 ```bash
 make run     # compila, instala em ~/Applications e abre (ícone na barra de menus)
 make stop
 make dmg     # instalador (536 MB, tudo embarcado)
 ```
+
+## O estado do repositório
+
+Tudo vive na branch **`fase-4-e-correcao-de-captura`**, três commits, **sem push**. A `main`
+está intocada em `3a13a0b`.
+
+| | |
+|---|---|
+| `c9771a1` | A taxa de amostragem vem do dispositivo, não do que o tap declara |
+| `e8f9be7` | Exportação: levar a reunião para fora do Capita |
+| `7ad394b` | Fase 4: a reunião vira ata |
+
+A ordem é captura → exportação → Fase 4 porque nessa ordem nenhum commit depende do
+seguinte. **Os três foram verificados com `git checkout` e build limpo**: cada um compila
+sozinho, então `git bisect` funciona.
+
+⚠ A identidade do git foi configurada **só neste repositório** (`git config user.name`, sem
+`--global`) — não havia nenhuma e o commit falhava.
+
+⚠ O motor de IA está **fixado no Ollama** em `UserDefaults`, de um teste. Para voltar ao
+melhor disponível: Ajustes → "Usar o melhor disponível", ou
+`defaults delete com.ilansalviano.capita intelligence.preferredProvider`.
+
+---
+
+## O que fazer primeiro na próxima sessão
+
+Dois requisitos novos, ainda **não implementados**. Ver "Próximas fases" ao fim para o
+detalhe de cada um.
+
+1. **Título de verdade nas gravações** — hoje a biblioteca mostra "19 Aug 2026 at 12:04".
+   Precisa mostrar um título que resuma a conversa, com data/hora e duração ao lado.
+2. **Mapa mental gráfico, editável e exportável** — hoje é uma árvore de leitura, estática.
 
 ---
 
@@ -232,10 +265,62 @@ outra máquina: o macOS 26 só oferece "Mover para o Lixo".
 
 ## Próximas fases
 
-- **Fase 5 — Ask AI (RAG)**: busca semântica com citações que saltam para o timestamp.
-  Direção pesquisada: llama.cpp compartilhando o mesmo checkout do ggml + `embeddinggemma-300m`.
-- **Fase 6 — Detecção de reunião, notas, screenshots durante a call.**
-- **Fase 7 — Busca global e atalhos.** (A exportação já saiu, junto com a Fase 4.)
+### Fase 5 — Título de verdade nas gravações
+
+Hoje a biblioteca lista "19 Aug 2026 at 12:04". Isso identifica *quando*, não *o quê* — e
+com trinta reuniões na lista, achar aquela sobre a arquitetura da Caixa vira uma caçada.
+
+O título precisa resumir a conversa, com **data/hora e duração ao lado**, não no lugar.
+
+O que já existe: `MeetingSummary.title` é exatamente isso, gerado e bom
+("Aligning on AI Tools for Enterprise Accounts", "Governança e Estratégia de Serviços
+Digitais em Plataforma"). O trabalho é levá-lo para `Recording.title` e para a lista.
+
+Pontos que decidem o desenho:
+
+- **Não esperar o resumo.** O resumo é sob demanda e custa minutos; o título precisa estar
+  lá assim que a transcrição termina. Uma chamada curta e barata só para o título, logo
+  depois de transcrever, resolve — e quando o resumo completo chegar, ele substitui.
+- **Nunca sobrescrever um título que o usuário digitou.** Precisa de um campo em
+  `metadata.json` dizendo a origem (gerado × manual), no mesmo espírito de
+  `speakerNames`: o palpite da IA cede sempre para a escolha da pessoa.
+- **Sem motor de IA disponível, cair no formato atual** — data e hora. Um app que mostra
+  gravações sem nome porque o Ollama não estava rodando é pior que um app sem a feature.
+- Renomear pela lista (duplo clique) deve continuar possível.
+
+### Fase 6 — Mapa mental gráfico, editável e exportável
+
+Hoje o mapa mental é uma árvore de leitura com trilhos verticais: correta, mas estática. O
+que se quer é enxergar a reunião espacialmente, **mexer nela** — corrigir um ramo, acrescentar
+o que a IA não pegou, reorganizar — e depois **exportar a imagem**.
+
+O que já existe: `MeetingSummary.MindNode` (rótulo + filhos, três níveis), o `MindMapView`
+com o layout achatado, e o caminho de exportação de imagem via `ImageRenderer` já provado
+em `SummaryExporter.writePNG` (196 KB, 2× de escala, legível).
+
+Pontos que decidem o desenho:
+
+- **A edição não pode morrer quando o resumo é regerado.** É a mesma tensão dos nomes de
+  locutor, e a resposta deve ser a mesma: o trabalho da pessoa ganha da IA. Guardar o mapa
+  editado num arquivo próprio (`mindmap.json`), separado do `summary.json`, e ao regerar
+  oferecer a fusão em vez de aplicá-la — nunca descartar em silêncio.
+- **Layout em árvore de verdade**, não recuo. Reingold–Tilford é o algoritmo padrão para
+  isso e cabe em pouca coisa; o difícil é o gesto, não a matemática.
+- ⚠ **Uma `View` do SwiftUI não pode se conter** — o tipo opaco do `body` ficaria definido
+  em termos de si mesmo e o compilador recusa. Foi o que obrigou o `MindMapView` atual a
+  achatar a árvore em linhas. Um mapa 2D provavelmente quer o mesmo: calcular as posições
+  de todos os nós antes de desenhar, e renderizar uma lista plana de nós posicionados mais
+  as arestas num `Canvas`.
+- Precisa de pan/zoom, seleção, criar/editar/apagar nó e arrastar para outro pai.
+- Exportar deve renderizar o mapa **inteiro** na sua extensão natural, não o que está
+  visível na janela — mesma armadilha da largura fixa de 900 pt no infográfico.
+
+### Depois
+
+- **Ask AI (RAG)**: busca semântica com citações que saltam para o timestamp. Direção
+  pesquisada: llama.cpp compartilhando o mesmo checkout do ggml + `embeddinggemma-300m`.
+- **Detecção de reunião, notas, screenshots durante a call.**
+- **Busca global e atalhos.** (A exportação já saiu, junto com a Fase 4.)
 
 Plano completo em `~/.claude/plans/indexed-puzzling-kahan.md`.
 
