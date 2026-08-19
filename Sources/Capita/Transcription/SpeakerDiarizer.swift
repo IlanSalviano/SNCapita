@@ -53,25 +53,140 @@ struct SpeakerDiarizer {
         }
     }
 
-    /// Atribui a cada segmento transcrito o locutor cujo turno mais se sobrepõe a ele.
+    /// Atribui locutores aos segmentos, **cortando-os onde o locutor muda**.
+    ///
+    /// O Whisper decide onde termina um segmento ouvindo só o áudio, sem saber quem fala.
+    /// O resultado é que um segmento atravessa a troca de locutor e a frase inteira vai
+    /// para uma pessoa só. Medido numa reunião real de 54 minutos: **68% das trocas
+    /// caíam no meio de uma frase**, e trechos apareciam atribuídos a quem não os disse.
+    ///
+    /// Numa ata isso não é detalhe — colocar uma frase na boca da pessoa errada é pior do
+    /// que não atribuí-la a ninguém. Com o tempo de cada palavra, cortamos no ponto certo.
+    static func assign(_ timed: [TimedSegment], turns: [Turn]) -> [TranscriptSegment] {
+        guard !turns.isEmpty else { return timed.map(\.segment) }
+
+        var result: [TranscriptSegment] = []
+        for item in timed {
+            // A trilha do microfone é você por construção — nada a decidir.
+            guard item.segment.track == .system else {
+                result.append(item.segment)
+                continue
+            }
+            result.append(contentsOf: split(item, turns: turns))
+        }
+
+        // Reindexamos porque um segmento pode ter virado vários.
+        return result.enumerated().map { index, segment in
+            var copy = segment
+            copy.id = index
+            return copy
+        }
+    }
+
+    /// Divide um segmento nos pontos em que o locutor muda.
+    private static func split(_ item: TimedSegment, turns: [Turn]) -> [TranscriptSegment] {
+        let segment = item.segment
+
+        // Sem tempos por palavra não há como cortar; cai no comportamento antigo de
+        // atribuir o segmento inteiro a quem mais se sobrepõe a ele.
+        guard !item.words.isEmpty else {
+            guard let speaker = dominantSpeaker(from: segment.start, to: segment.end, turns: turns)
+            else { return [segment] }
+            return [segment.withSpeaker(speaker)]
+        }
+
+        // Locutor do segmento como um todo, usado para palavras que não caem em turno
+        // nenhum — nas bordas, ou nas pausas que a diarização não cobriu.
+        let fallback = dominantSpeaker(from: segment.start, to: segment.end, turns: turns)
+
+        // Agrupa palavras consecutivas do mesmo locutor.
+        var groups: [(speaker: String?, words: [TimedWord])] = []
+        for word in item.words {
+            let speaker = turns.first { word.midpoint >= $0.start && word.midpoint < $0.end }?
+                .speakerID
+                ?? dominantSpeaker(from: word.start, to: word.end, turns: turns)
+                ?? groups.last?.speaker
+                ?? fallback
+
+            if var last = groups.last, last.speaker == speaker {
+                last.words.append(word)
+                groups[groups.count - 1] = last
+            } else {
+                groups.append((speaker, [word]))
+            }
+        }
+
+        groups = absorbShortGroups(in: groups)
+
+        return groups.compactMap { group in
+            // Espaço explícito: as palavras foram separadas por espaço ao serem
+            // cronometradas e não o carregam consigo.
+            let text = group.words.map(\.text).joined(separator: " ")
+                .trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty, let first = group.words.first, let last = group.words.last
+            else { return nil }
+
+            var piece = TranscriptSegment(
+                id: segment.id, start: first.start, end: last.end,
+                text: text, track: segment.track)
+            piece.speakerID = group.speaker
+            return piece
+        }
+    }
+
+    /// Uma troca de locutor só vale o corte se render um trecho com ao menos este tamanho.
+    ///
+    /// Sem esta guarda o transcript se estilhaça: os tempos por palavra são estimados e a
+    /// fronteira da diarização tem sua própria incerteza, então o encontro dos dois produz
+    /// cacos de uma ou duas palavras trocando de locutor. Numa primeira versão, 16% dos
+    /// segmentos ficaram com duas palavras ou menos — ilegível, e pior que o problema que
+    /// o corte veio resolver.
+    private static let minimumWordsPerTurn = 4
+
+    /// Absorve grupos curtos demais no vizinho, preservando todo o texto.
+    private static func absorbShortGroups(
+        in groups: [(speaker: String?, words: [TimedWord])]
+    ) -> [(speaker: String?, words: [TimedWord])] {
+        guard groups.count > 1 else { return groups }
+
+        var result: [(speaker: String?, words: [TimedWord])] = []
+        for group in groups {
+            let tooShort = group.words.count < minimumWordsPerTurn
+            if tooShort, !result.isEmpty {
+                // Vai para o grupo anterior, que assume também suas palavras.
+                result[result.count - 1].words.append(contentsOf: group.words)
+            } else if tooShort, let next = groups.dropFirst().first, next.speaker != group.speaker {
+                // Primeiro grupo curto: deixa para o próximo absorvê-lo.
+                result.append((next.speaker, group.words))
+            } else {
+                result.append(group)
+            }
+        }
+
+        // A absorção pode ter deixado grupos vizinhos com o mesmo locutor; junta-os.
+        var merged: [(speaker: String?, words: [TimedWord])] = []
+        for group in result {
+            if var last = merged.last, last.speaker == group.speaker {
+                last.words.append(contentsOf: group.words)
+                merged[merged.count - 1] = last
+            } else {
+                merged.append(group)
+            }
+        }
+        return merged
+    }
+
+    /// Locutor com maior sobreposição num intervalo.
     ///
     /// Sobreposição, e não o instante inicial: os limites do Whisper e os da diarização
-    /// vêm de modelos diferentes e nunca coincidem exatamente. Escolher pelo início faria
-    /// uma frase inteira ser atribuída a quem apenas terminou de falar em cima dela.
-    static func assign(_ segments: [TranscriptSegment], turns: [Turn]) -> [TranscriptSegment] {
-        guard !turns.isEmpty else { return segments }
-
-        return segments.map { segment in
-            // A trilha do microfone é você por construção — nada a decidir.
-            guard segment.track == .system else { return segment }
-
-            let best = turns
-                .map { ($0.speakerID, $0.overlap(with: segment.start, segment.end)) }
-                .filter { $0.1 > 0 }
-                .max { $0.1 < $1.1 }
-
-            guard let speakerID = best?.0 else { return segment }
-            return segment.withSpeaker(speakerID)
-        }
+    /// vêm de modelos diferentes e nunca coincidem exatamente.
+    private static func dominantSpeaker(
+        from start: TimeInterval, to end: TimeInterval, turns: [Turn]
+    ) -> String? {
+        turns
+            .map { ($0.speakerID, $0.overlap(with: start, end)) }
+            .filter { $0.1 > 0 }
+            .max { $0.1 < $1.1 }?
+            .0
     }
 }

@@ -59,7 +59,7 @@ final class WhisperEngine {
         language: String?,
         vadModelURL: URL? = nil,
         progress: (@Sendable (Double) -> Void)? = nil
-    ) throws -> [TranscriptSegment] {
+    ) throws -> [TimedSegment] {
 
         guard let context else { throw TranscriptionError.contextUnavailable }
 
@@ -71,6 +71,17 @@ final class WhisperEngine {
         params.print_progress = false
         params.print_timestamps = false
         params.print_special = false
+
+        // NÃO ligar `token_timestamps` junto com o VAD.
+        //
+        // Com os dois ativos, o whisper.cpp passa a derivar também os tempos dos
+        // *segmentos* a partir dos tokens — que vêm na linha do tempo comprimida pelo
+        // VAD, sem os silêncios. Numa reunião de 54 minutos isso deslocou as falas em
+        // até 5,5 minutos, e num teste curto uma fala real aos 16,7s foi reportada aos
+        // 8,6s. O player saltaria para o lugar errado e o transcript ficaria dessincronizado.
+        //
+        // Os tempos por palavra são estimados a partir do próprio segmento (ver `words`).
+        params.token_timestamps = false
         params.translate = false
         params.no_timestamps = false
         params.single_segment = false
@@ -160,8 +171,10 @@ final class WhisperEngine {
                 .trimmingCharacters(in: .whitespaces)
             guard !text.isEmpty, !Self.isNonSpeechAnnotation(text) else { return nil }
 
-            return TranscriptSegment(
-                id: Int(index), start: start, end: end, text: text, track: track)
+            return TimedSegment(
+                segment: TranscriptSegment(
+                    id: Int(index), start: start, end: end, text: text, track: track),
+                words: Self.words(in: text, from: start, to: end))
         }
     }
 
@@ -171,6 +184,37 @@ final class WhisperEngine {
         let id = whisper_full_lang_id(context)
         guard id >= 0, let name = whisper_lang_str(id) else { return "" }
         return String(cString: name)
+    }
+
+    /// Estima quando cada palavra do segmento foi dita.
+    ///
+    /// Distribui a duração do segmento entre as palavras proporcionalmente ao tamanho de
+    /// cada uma — uma aproximação, já que ninguém fala em ritmo constante. Serve porque o
+    /// uso é modesto: localizar, dentro do segmento, a palavra mais próxima do instante
+    /// em que a diarização diz que o locutor mudou. Um erro de uma palavra é irrelevante
+    /// diante da incerteza da própria fronteira de diarização.
+    ///
+    /// A alternativa — os tempos por token do whisper.cpp — é mais precisa no papel, mas
+    /// corrompe os tempos dos segmentos quando o VAD está ativo (ver `transcribe`).
+    private static func words(
+        in text: String, from start: TimeInterval, to end: TimeInterval
+    ) -> [TimedWord] {
+        let pieces = text.split(separator: " ", omittingEmptySubsequences: true)
+        guard !pieces.isEmpty, end > start else { return [] }
+
+        // O comprimento aproxima a duração melhor que a contagem: "de" leva menos tempo
+        // que "consequentemente".
+        let total = Double(pieces.reduce(0) { $0 + $1.count })
+        guard total > 0 else { return [] }
+
+        let duration = end - start
+        var cursor = start
+        return pieces.map { piece in
+            let share = duration * Double(piece.count) / total
+            let word = TimedWord(text: String(piece), start: cursor, end: cursor + share)
+            cursor += share
+            return word
+        }
     }
 
     /// Reconhece anotações de som que o Whisper emite no lugar de fala — "[SOM DE TAPE]",

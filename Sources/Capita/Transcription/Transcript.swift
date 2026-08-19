@@ -2,7 +2,9 @@ import Foundation
 
 /// Um trecho falado, com o intervalo de tempo em que ocorre no áudio.
 struct TranscriptSegment: Identifiable, Codable, Sendable {
-    let id: Int
+    /// Reatribuído após a diarização: um segmento do Whisper pode ser cortado em vários
+    /// quando o locutor muda no meio dele.
+    var id: Int
     let start: TimeInterval
     let end: TimeInterval
     let text: String

@@ -99,7 +99,7 @@ final class TranscriptionService {
             // O whisper_context não é seguro entre threads; criamos um por trabalho e o
             // liberamos ao fim, mantendo a memória do modelo fora do app em repouso.
             let engine = try WhisperEngine(modelURL: modelURL)
-            var segments: [TranscriptSegment] = []
+            var timed: [TimedSegment] = []
 
             for (index, track) in tracks.enumerated() {
                 let base = Double(index) / Double(tracks.count)
@@ -115,36 +115,40 @@ final class TranscriptionService {
                         self?.progress = base + value * span
                     }
                 }
-                segments.append(contentsOf: found)
+                timed.append(contentsOf: found)
             }
 
-            // Reindexamos após intercalar: os ids vinham de cada trilha isoladamente e
-            // colidiriam entre si.
-            segments.sort { $0.start < $1.start }
-            let numbered = segments.enumerated().map { index, segment in
-                TranscriptSegment(
-                    id: index, start: segment.start, end: segment.end,
-                    text: segment.text, track: segment.track)
-            }
-
-            return Transcript(
-                segments: numbered,
-                language: engine.detectedLanguage,
-                modelName: engine.modelName,
-                createdAt: Date())
+            // Intercala as duas trilhas por tempo, formando o diálogo. A numeração final
+            // dos segmentos vem depois da diarização, que pode dividi-los.
+            timed.sort { $0.segment.start < $1.segment.start }
+            return (timed: timed,
+                    language: engine.detectedLanguage,
+                    modelName: engine.modelName)
         }.value
 
         // Diarização depois da transcrição, e não antes: se ela falhar ou demorar, ainda
-        // temos um transcript utilizável para salvar — só sem os rótulos de participante.
-        var final = result
+        // temos um transcript utilizável — só sem os rótulos de participante.
+        var segments: [TranscriptSegment]
         if FileManager.default.fileExists(atPath: systemTrackURL.path) {
             let turns = await SpeakerDiarizer.turns(
                 in: systemTrackURL, modelsDirectory: diarizationModels)
-            final.segments = SpeakerDiarizer.assign(result.segments, turns: turns)
+            segments = SpeakerDiarizer.assign(result.timed, turns: turns)
 
             let speakers = Set(turns.map(\.speakerID)).count
             Diagnostics.log("diarização: \(speakers) participante(s) em \(turns.count) turnos")
+        } else {
+            segments = result.timed.enumerated().map { index, item in
+                var segment = item.segment
+                segment.id = index
+                return segment
+            }
         }
+
+        let final = Transcript(
+            segments: segments,
+            language: result.language,
+            modelName: result.modelName,
+            createdAt: Date())
 
         try save(final, for: id)
         Diagnostics.log(
