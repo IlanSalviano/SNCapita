@@ -425,10 +425,36 @@ de 30 s de app aberto.
 
 ---
 
-## Decisão em aberto
+## Notarização — pronta, faltando duas credenciais
 
-**Notarização.** Você vai providenciar a conta Apple Developer. Sem ela o DMG não abre em
-outra máquina: o macOS 26 só oferece "Mover para o Lixo".
+`make notarize` faz o caminho inteiro: assina com Developer ID (hardened runtime,
+timestamp, entitlements), gera o DMG, envia para a Apple, espera, grampeia o carimbo e
+confere como o Gatekeeper vai ver — inclusive abrindo o DMG e testando o app **de dentro
+dele**, que é a cópia que chega na outra máquina.
+
+O script recusa começar sem os dois pré-requisitos, com a instrução na tela:
+
+1. **Certificado "Developer ID Application"** no keychain de login. Xcode → Settings →
+   Accounts → sua Apple ID → Manage Certificates → "+" → Developer ID Application. Exige
+   conta paga do Developer Program; a Apple ID solta do Xcode não serve.
+2. **Credenciais do notarytool**, guardadas uma vez:
+   `xcrun notarytool store-credentials capita --apple-id … --team-id … --password …`.
+   A senha é uma *app-specific password* de appleid.apple.com, nunca a senha da conta.
+
+⚠ **O hardened runtime, que a notarização exige, fecha o áudio por padrão.** Sem
+`com.apple.security.device.audio-input` o app assinado abre, roda e grava **silêncio** —
+o pedido de permissão nem chega a aparecer. `Resources/Capita.entitlements` existe por
+isso, e o `notarize.sh` confere as duas coisas (flag `runtime` e o entitlement) antes de
+enviar, porque descobrir depois custa a viagem inteira.
+
+Testado antes de ter o certificado: o app assinado **com hardened runtime e o
+entitlement**, usando o certificado local, gravou as duas trilhas com sinal de verdade
+(RMS 2646 no sistema, 1767 no microfone) e não pediu permissão de novo. O que falta provar
+na Apple é só a notarização em si.
+
+⚠ Assinar com Developer ID muda o Designated Requirement, e o macOS trata isso como outro
+app: as permissões de microfone e de gravação de áudio serão pedidas mais uma vez, na
+primeira execução da versão distribuída. Uma vez só.
 
 ---
 
@@ -453,6 +479,7 @@ Capita --smoke-summarize [id]        # mostra a ata salva; --force regera
 Capita --smoke-title [id]            # gera e salva o título de uma gravação transcrita
 Capita --smoke-mindmap [id]          # geometria, edição, fusão e imagem do mapa mental
 Capita --open-summary [id]           # abre a biblioteca já na ata daquela gravação
+make notarize                        # assina com Developer ID, notariza e grampeia o DMG
 Capita --smoke-transcribe [id] --title   # transcreve e nomeia: a corrente inteira
 Capita --smoke-export [id]           # mixa e exporta tudo para /tmp, com conferência
 Capita --open-library                # abre a biblioteca direto

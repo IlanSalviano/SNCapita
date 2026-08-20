@@ -1,4 +1,4 @@
-.PHONY: help build app dmg install run stop spike-tap smoke-record smoke-export \
+.PHONY: help build app dmg notarize install run stop spike-tap smoke-record smoke-export \
         smoke-summarize smoke-title smoke-mindmap icon signing-cert clean check
 
 APP      := build/Capita.app
@@ -17,7 +17,8 @@ help:
 	@echo "  make install       Instala em ~/Applications (sem admin)"
 	@echo "  make run           Instala e abre"
 	@echo "  make stop          Encerra o app"
-	@echo "  make dmg           Gera o .dmg distribuível"
+	@echo "  make dmg           Gera o .dmg (só para esta máquina)"
+	@echo "  make notarize      Assina com Developer ID, notariza e grampeia o .dmg"
 	@echo "  make signing-cert  Cria certificado estável (evita re-pedir permissões)"
 	@echo "  make icon          Regenera o ícone .icns"
 	@echo "  make check         Verifica o bundle (assinatura, plist, recursos)"
@@ -65,6 +66,11 @@ app:
 
 dmg: app
 	@./scripts/make-dmg.sh
+
+# Assina com Developer ID, notariza na Apple e grampeia o carimbo. Sem isto o DMG só
+# funciona nesta máquina: em outra, o macOS 26 recusa abrir o app.
+notarize:
+	@./scripts/notarize.sh
 
 signing-cert:
 	@./scripts/make-signing-cert.sh

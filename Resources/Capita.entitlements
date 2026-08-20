@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Hardened runtime. É obrigatório para notarizar, e ele fecha por padrão o acesso
+         ao áudio: sem esta chave o app assinado com Developer ID abre, roda e grava
+         silêncio — o pedido de permissão nem chega a aparecer.
+
+         Cobre as duas capturas: o microfone e o process tap do CoreAudio, que é como o
+         Capita ouve os outros participantes.
+
+         Não há App Sandbox aqui. Ele exigiria "security-scoped bookmarks" para as pastas
+         escolhidas na exportação e um XPC para lançar o Claude Code — e não é requisito
+         para distribuir fora da App Store. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>

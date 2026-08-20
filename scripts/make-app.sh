@@ -104,13 +104,38 @@ echo "▸ Assinando"
 # permissão persiste entre builds.
 IDENTITY="${CODESIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
+    # Developer ID primeiro: se ele existe nesta máquina, é o que se quer assinar.
+    IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
+        | grep -oE '"Developer ID Application[^"]*"' | head -1 | tr -d '"') || true
+fi
+if [ -z "$IDENTITY" ]; then
     IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
         | grep -oE '"[^"]*Capita[^"]*"' | head -1 | tr -d '"') || true
 fi
 
+ENTITLEMENTS="$ROOT/Resources/Capita.entitlements"
+
 if [ -n "$IDENTITY" ]; then
     echo "  identidade: $IDENTITY"
-    codesign --force --sign "$IDENTITY" --timestamp=none "$APP"
+
+    # Com Developer ID, o alvo é a notarização, e ela impõe duas coisas que o
+    # certificado local não suporta: hardened runtime e timestamp assinado pela Apple.
+    #
+    # O hardened runtime fecha o acesso ao áudio por padrão — daí os entitlements. Sem
+    # eles o app abre, roda e grava silêncio, sem sequer pedir permissão.
+    case "$IDENTITY" in
+        "Developer ID Application"*)
+            echo "  hardened runtime + timestamp (para notarizar)"
+            codesign --force --sign "$IDENTITY" \
+                --options runtime --timestamp \
+                --entitlements "$ENTITLEMENTS" "$APP"
+            ;;
+        *)
+            # Certificado local: sem timestamp (não há autoridade para carimbar) e sem
+            # hardened runtime, que aqui só serviria para atrapalhar o desenvolvimento.
+            codesign --force --sign "$IDENTITY" --timestamp=none "$APP"
+            ;;
+    esac
 else
     echo "  identidade: ad-hoc (a permissão de áudio será re-pedida a cada build —"
     echo "              rode 'make signing-cert' para criar um certificado estável)"
