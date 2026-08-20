@@ -1,6 +1,6 @@
 # Onde paramos — 20/08/2026
 
-**Fases 0 a 5 entregues**, mais exportação, a correção de um bug de captura que corrompia
+**Fases 0 a 6 entregues**, mais exportação, a correção de um bug de captura que corrompia
 gravações em silêncio e o fim do abort ao encerrar. Validado em duas reuniões reais, de 54
 e de 68 minutos.
 
@@ -38,12 +38,18 @@ soltar, `defaults delete com.ilansalviano.capita intelligence.preferredProvider`
 
 ## O que fazer primeiro na próxima sessão
 
-**Fase 6 — mapa mental gráfico, editável e exportável.** Hoje é uma árvore de leitura,
-estática. Detalhe em "Próximas fases", ao fim.
+**Olhar o mapa mental na tela e mexer nele.** Foi a única parte da Fase 6 que não deu para
+verificar em imagem — arrastar um nó para outro pai, o duplo clique que renomeia, o pan e o
+zoom. `Capita --open-summary <prefixo-do-id>` abre a biblioteca já na ata.
 
-Uma ponta solta pequena: **o título do resumo só é aplicado quando o resumo é salvo**, de
-modo que reuniões resumidas antes da Fase 5 continuam com o título curto até serem
-regeradas.
+Duas pontas soltas pequenas:
+
+1. **O título do resumo só é aplicado quando o resumo é salvo**, então reuniões resumidas
+   antes da Fase 5 continuam com o título curto até serem regeradas.
+2. **Um ramo renomeado volta duplicado na fusão do mapa mental** — ver Fase 6.
+
+Depois disso, o que sobrou do plano: Ask AI (RAG), detecção de reunião com notas e
+screenshots durante a call, e busca global.
 
 ---
 
@@ -169,6 +175,76 @@ Verificado nas duas reuniões reais:
 O idioma segue a reunião, não a interface. E a corrente inteira — transcrever → avisar o
 `AppState` → chamar a IA → salvar — foi verificada de ponta a ponta com
 `--smoke-transcribe <id> --title`.
+
+---
+
+## Fase 6 — Mapa mental gráfico, editável e exportável
+
+A árvore de leitura com trilhos estava correta e era inútil para o que se faz com um mapa
+mental — mexer nele. Agora é um mapa 2D: pan, zoom, seleção, criar, renomear, apagar e
+arrastar um nó para cima de outro para mudar de pai. Toda edição vai para `mindmap.json`
+na hora; não há botão de salvar, que só criaria a chance de perder trabalho ao fechar.
+
+**`mindmap.json` é separado do `summary.json`** pelo mesmo motivo dos nomes de
+participante: os dois têm donos diferentes. O resumo é da IA e é refeito sozinho quando o
+diálogo muda; o mapa, depois da primeira edição, é da pessoa. Cada nó tem `UUID` próprio —
+o rótulo não serve de chave, porque renomear um nó não pode fazer dele outro nó.
+
+**Quando o resumo é refeito e traz um mapa diferente**, o app não escolhe por você. Se o
+mapa nunca foi editado, adota o novo em silêncio (não há o que preservar). Se foi editado,
+aparece um aviso com três saídas: **trazer o que falta** — a única que não perde nada —,
+usar o mapa novo, ou manter o seu. As duas que perdem ficam num menu, não a um clique.
+
+A fusão compara **rótulos**: traz os ramos cujo nome não existe em lugar nenhum do mapa
+editado. Um diff de árvore de verdade teria de casar nós renomeados e movidos, e erraria em
+silêncio. ⚠ O efeito colateral conhecido: um ramo que você **renomeou** parece novo para a
+fusão e volta duplicado — visível, e apagável com Delete. O caso oposto está garantido por
+teste: fundir um mapa idêntico não duplica nada.
+
+### O layout
+
+`MindMapLayout` calcula as posições de todos os nós **antes** de desenhar, e a view vira
+uma lista plana de nós posicionados mais as arestas num `Canvas`. Não é escolha de estilo:
+⚠ **uma `View` do SwiftUI não pode se conter** — o tipo opaco do `body` ficaria definido em
+termos de si mesmo. Foi o que obrigou o mapa antigo a achatar a árvore em linhas.
+
+É a variante simples do Reingold–Tilford: cada subárvore ocupa uma faixa vertical própria e
+o pai fica centrado entre o primeiro e o último filho. Os contornos da versão completa
+servem para *encaixar* subárvores vizinhas — densidade, que é o oposto do que um mapa que
+se lê e se edita precisa.
+
+O tamanho de cada nó vem do texto, medido com `NSAttributedString.boundingRect` na mesma
+fonte que a view usa. AppKit no meio de SwiftUI é deliberado: é a única forma de saber o
+tamanho do texto antes de desenhar, e sem isso não há layout.
+
+⚠ **As ligações saem da borda do nó, não da coluna.** Sair da coluna alinha os pontos de
+partida e deixa a linha visivelmente solta em qualquer nó mais estreito que a coluna — foi
+o que a primeira imagem exportada mostrou.
+
+### Exportação
+
+`Mapa mental (.png)` no menu de exportar e no botão da própria barra do mapa. Renderiza a
+**extensão natural** do mapa, sem `frame` fixo: é a armadilha da largura fixa do
+infográfico com o sinal trocado — lá o perigo era o cartão mudar de forma com a janela,
+aqui é o mapa sair cortado justamente porque a pessoa deu zoom para trabalhar num ramo. O
+mapa de 23 nós da reunião de 68 min saiu em 1970×1278 px, 235 KB.
+
+### Verificação
+
+`make smoke-mindmap` não se contenta com "não travou": mede a geometria calculada.
+
+| Verificação | Resultado |
+|---|---|
+| 23 nós, 929×541 pt | nenhum par de nós se sobrepõe |
+| Ligações | nenhuma aponta para trás (filho à esquerda do pai) |
+| Área calculada | todo nó cabe dentro dela — a imagem não corta |
+| Criar, renomear, mover, apagar | ok, inclusive a recusa de mover um nó para dentro de si |
+| Fusão | preserva a edição; mapa idêntico não duplica nada |
+| PNG | 1970×1278 px, ≥ 2× a largura do layout |
+
+⚠ **A interface interativa não foi verificada em imagem** — pan, zoom, arrastar e o campo
+de renomear. O que a fotografia cobriu foi a lista da biblioteca e a aba de resumo; o
+desenho do mapa em si está provado pelo PNG, que usa a mesma view dos nós.
 
 ---
 
@@ -357,35 +433,6 @@ outra máquina: o macOS 26 só oferece "Mover para o Lixo".
 
 ## Próximas fases
 
-### Fase 6 — Mapa mental gráfico, editável e exportável
-
-Hoje o mapa mental é uma árvore de leitura com trilhos verticais: correta, mas estática. O
-que se quer é enxergar a reunião espacialmente, **mexer nela** — corrigir um ramo, acrescentar
-o que a IA não pegou, reorganizar — e depois **exportar a imagem**.
-
-O que já existe: `MeetingSummary.MindNode` (rótulo + filhos, três níveis), o `MindMapView`
-com o layout achatado, e o caminho de exportação de imagem via `ImageRenderer` já provado
-em `SummaryExporter.writePNG` (196 KB, 2× de escala, legível).
-
-Pontos que decidem o desenho:
-
-- **A edição não pode morrer quando o resumo é regerado.** É a mesma tensão dos nomes de
-  locutor, e a resposta deve ser a mesma: o trabalho da pessoa ganha da IA. Guardar o mapa
-  editado num arquivo próprio (`mindmap.json`), separado do `summary.json`, e ao regerar
-  oferecer a fusão em vez de aplicá-la — nunca descartar em silêncio.
-- **Layout em árvore de verdade**, não recuo. Reingold–Tilford é o algoritmo padrão para
-  isso e cabe em pouca coisa; o difícil é o gesto, não a matemática.
-- ⚠ **Uma `View` do SwiftUI não pode se conter** — o tipo opaco do `body` ficaria definido
-  em termos de si mesmo e o compilador recusa. Foi o que obrigou o `MindMapView` atual a
-  achatar a árvore em linhas. Um mapa 2D provavelmente quer o mesmo: calcular as posições
-  de todos os nós antes de desenhar, e renderizar uma lista plana de nós posicionados mais
-  as arestas num `Canvas`.
-- Precisa de pan/zoom, seleção, criar/editar/apagar nó e arrastar para outro pai.
-- Exportar deve renderizar o mapa **inteiro** na sua extensão natural, não o que está
-  visível na janela — mesma armadilha da largura fixa de 900 pt no infográfico.
-
-### Depois
-
 - **Ask AI (RAG)**: busca semântica com citações que saltam para o timestamp. Direção
   pesquisada: llama.cpp compartilhando o mesmo checkout do ggml + `embeddinggemma-300m`.
 - **Detecção de reunião, notas, screenshots durante a call.**
@@ -403,6 +450,8 @@ Capita --smoke-transcribe [id]       # transcreve; sem id usa a mais recente
 Capita --smoke-engines               # detecta e testa o motor de IA
 Capita --smoke-summarize [id]        # mostra a ata salva; --force regera
 Capita --smoke-title [id]            # gera e salva o título de uma gravação transcrita
+Capita --smoke-mindmap [id]          # geometria, edição, fusão e imagem do mapa mental
+Capita --open-summary [id]           # abre a biblioteca já na ata daquela gravação
 Capita --smoke-transcribe [id] --title   # transcreve e nomeia: a corrente inteira
 Capita --smoke-export [id]           # mixa e exporta tudo para /tmp, com conferência
 Capita --open-library                # abre a biblioteca direto

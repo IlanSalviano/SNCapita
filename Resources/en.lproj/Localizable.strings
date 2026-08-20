@@ -85,3 +85,21 @@
 "settings.use" = "Use";
 "settings.detect_again" = "Detect again";
 "settings.use_best" = "Use best available";
+
+/* Mind map */
+"mindmap.add_child" = "Add child (Tab)";
+"mindmap.add_sibling" = "Add sibling (Return)";
+"mindmap.delete" = "Delete node (Delete)";
+"mindmap.zoom_in" = "Zoom in";
+"mindmap.zoom_out" = "Zoom out";
+"mindmap.fit" = "Fit to window";
+"mindmap.new_node" = "New branch";
+"mindmap.outdated" = "The summary was rewritten and its mind map differs from yours.";
+"mindmap.graft" = "Bring what is missing";
+"mindmap.use_new" = "Replace with the new map";
+"mindmap.keep_mine" = "Keep mine";
+"mindmap.hint" = "Double-click to rename, drag onto another node to reparent.";
+"mindmap.delete_branch" = "Delete branch";
+"mindmap.delete_branch_question" = "Delete \u201c%@\u201d and everything under it?";
+"mindmap.grafted" = "%d branch(es) brought from the summary";
+"export.mind_map" = "Mind map (.png)\u2026";

@@ -85,3 +85,21 @@
 "settings.use" = "Usar";
 "settings.detect_again" = "Detectar novamente";
 "settings.use_best" = "Usar o melhor disponível";
+
+/* Mapa mental */
+"mindmap.add_child" = "Novo filho (Tab)";
+"mindmap.add_sibling" = "Novo irmão (Return)";
+"mindmap.delete" = "Apagar nó (Delete)";
+"mindmap.zoom_in" = "Aproximar";
+"mindmap.zoom_out" = "Afastar";
+"mindmap.fit" = "Ajustar à janela";
+"mindmap.new_node" = "Novo ramo";
+"mindmap.outdated" = "O resumo foi refeito e o mapa mental dele é diferente do seu.";
+"mindmap.graft" = "Trazer o que falta";
+"mindmap.use_new" = "Usar o mapa novo";
+"mindmap.keep_mine" = "Manter o meu";
+"mindmap.hint" = "Duplo clique renomeia; arraste um nó para cima de outro para mudar de pai.";
+"mindmap.delete_branch" = "Apagar o ramo";
+"mindmap.delete_branch_question" = "Apagar \u201c%@\u201d e tudo o que está abaixo?";
+"mindmap.grafted" = "%d ramo(s) trazido(s) do resumo";
+"export.mind_map" = "Mapa mental (.png)\u2026";

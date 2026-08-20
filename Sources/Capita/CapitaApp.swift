@@ -55,6 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SmokeTest.run(seconds: seconds, state: state)
         } else if SmokeTest.wantsTranscribe {
             SmokeTest.runTranscribe(state: state)
+        } else if SmokeTest.wantsMindMap {
+            SmokeTest.runMindMap(state: state)
         } else if SmokeTest.wantsTitle {
             SmokeTest.runTitle(state: state)
         } else if SmokeTest.wantsEngines {
@@ -63,7 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SmokeTest.runExport(state: state)
         } else if SmokeTest.wantsSummarize {
             SmokeTest.runSummarize(state: state)
-        } else if CommandLine.arguments.contains("--open-library") {
+        } else if CommandLine.arguments.contains("--open-library")
+                    || Diagnostics.opensSummary {
             // Atalhos de diagnóstico: abrem as janelas sem passar pelo popover.
             state.openLibrary()
         } else if CommandLine.arguments.contains("--open-settings") {

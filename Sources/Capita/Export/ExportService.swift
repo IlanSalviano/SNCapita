@@ -113,6 +113,25 @@ final class ExportService {
         }
     }
 
+    /// O mapa mental como está na tela — inclusive as edições.
+    ///
+    /// Exporta o mapa **inteiro**, na sua extensão natural, e não o que cabia na janela.
+    /// É a mesma armadilha da largura fixa do infográfico, com o sinal trocado: lá o
+    /// perigo era o cartão mudar de forma conforme a janela; aqui é o mapa sair cortado
+    /// justamente porque a pessoa tinha dado zoom para trabalhar num ramo.
+    func exportMindMap(_ recording: Recording, map: MindMap, title: String) {
+        guard let url = chooseFile(name: "\(baseName(for: recording)) — mapa.png",
+                                   type: .png)
+        else { return }
+        do {
+            try SummaryExporter.writeMindMapPNG(map, title: title, to: url)
+            lastExport = url
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     func revealLastExport() {
         guard let lastExport else { return }
         NSWorkspace.shared.activateFileViewerSelecting([lastExport])

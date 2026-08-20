@@ -1,5 +1,5 @@
 .PHONY: help build app dmg install run stop spike-tap smoke-record smoke-export \
-        smoke-summarize smoke-title icon signing-cert clean check
+        smoke-summarize smoke-title smoke-mindmap icon signing-cert clean check
 
 APP      := build/Capita.app
 INSTALLED := $(HOME)/Applications/Capita.app
@@ -12,6 +12,7 @@ help:
 	@echo "  make smoke-export  Mixa e exporta a gravação mais recente para /tmp"
 	@echo "  make smoke-summarize  Mostra a ata da gravação mais recente"
 	@echo "  make smoke-title   Dá nome à gravação mais recente já transcrita"
+	@echo "  make smoke-mindmap Confere o mapa mental e exporta a imagem"
 	@echo "  make app           Compila e monta Capita.app"
 	@echo "  make install       Instala em ~/Applications (sem admin)"
 	@echo "  make run           Instala e abre"
@@ -45,6 +46,11 @@ smoke-export: install
 smoke-title: install
 	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
 	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-title $(ARGS)
+
+# Confere o mapa mental: geometria, edição, fusão e a imagem exportada.
+smoke-mindmap: install
+	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
+	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-mindmap $(ARGS)
 
 # Sem --force apenas mostra a ata salva: resumir custa minutos e, no Claude Code, dinheiro.
 smoke-summarize: install

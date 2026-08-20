@@ -135,7 +135,7 @@ struct SummaryPane: View {
 
                 if !summary.decisions.isEmpty { decisions(summary.decisions) }
                 if !summary.actionItems.isEmpty { actions(summary) }
-                if let map = summary.mindMap, !map.children.isEmpty { mindMap(map) }
+                if let map = summary.mindMap, !map.children.isEmpty { mindMap(summary) }
 
                 provenance(summary)
             }
@@ -222,11 +222,8 @@ struct SummaryPane: View {
         .cardBackground()
     }
 
-    private func mindMap(_ root: MeetingSummary.MindNode) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(S.mindMap).font(Design.Typography.sectionHeading)
-            MindMapView(root: root)
-        }
+    private func mindMap(_ summary: MeetingSummary) -> some View {
+        MindMapEditor(recording: recording, summary: summary)
     }
 
     private func provenance(_ summary: MeetingSummary) -> some View {
@@ -438,86 +435,6 @@ private struct InfographicBlock: View {
         }
     }
 }
-
-// MARK: - Mapa mental
-
-/// O mapa mental como árvore com trilhos, e não como estrela radial.
-///
-/// A estrela é bonita numa imagem quadrada e péssima numa coluna de texto: os ramos se
-/// sobrepõem, o texto gira e nada disso sobrevive a redimensionar a janela. Trilhos
-/// verticais mostram a mesma hierarquia, leem de cima para baixo e cabem em qualquer
-/// largura.
-struct MindMapView: View {
-    let root: MeetingSummary.MindNode
-
-    /// A árvore vira uma lista plana com a profundidade em cada linha.
-    ///
-    /// Não é preferência de estilo: uma `View` do SwiftUI não pode se conter, porque o tipo
-    /// opaco do `body` ficaria definido em termos de si mesmo e o compilador recusa. Achatar
-    /// resolve isso e ainda simplifica o desenho — os trilhos viram colunas de cada linha,
-    /// contínuas por serem adjacentes, em vez de bordas encaixadas uma dentro da outra.
-    private struct Row: Identifiable {
-        let id: Int
-        let label: String
-        let level: Int
-    }
-
-    private var rows: [Row] {
-        var result: [Row] = []
-        func walk(_ node: MeetingSummary.MindNode, level: Int) {
-            result.append(Row(id: result.count, label: node.label, level: level))
-            for child in node.children { walk(child, level: level + 1) }
-        }
-        walk(root, level: 0)
-        return result
-    }
-
-    var body: some View {
-        // Sem espaçamento entre as linhas: o respiro vem do padding de dentro de cada uma.
-        // É o que mantém os trilhos contínuos — um `spacing` aqui os cortaria em traços.
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(rows) { row in
-                HStack(spacing: 0) {
-                    ForEach(0..<row.level, id: \.self) { _ in
-                        Rectangle()
-                            .fill(Design.Palette.cardBorder)
-                            .frame(width: 1)
-                            .frame(maxHeight: .infinity)
-                            .padding(.trailing, 13)
-                    }
-                    NodePill(text: row.label, level: row.level)
-                    Spacer(minLength: 0)
-                }
-                .padding(.vertical, 2)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-}
-
-private struct NodePill: View {
-    let text: String
-    let level: Int
-
-    var body: some View {
-        Text(text)
-            .font(level == 0
-                  ? Design.Typography.body.weight(.semibold)
-                  : Design.Typography.body)
-            .foregroundStyle(level > 1 ? Design.Palette.secondaryLabel : Design.Palette.label)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(level == 0 ? Design.Palette.card : Color.clear)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .strokeBorder(level <= 1 ? Design.Palette.cardBorder : .clear))
-            )
-    }
-}
-
 // MARK: - Peças pequenas
 
 private struct BadgeLabel: View {
@@ -536,7 +453,7 @@ private struct BadgeLabel: View {
     }
 }
 
-private struct Banner: View {
+struct Banner: View {
     let icon: String
     let text: String
     let action: String

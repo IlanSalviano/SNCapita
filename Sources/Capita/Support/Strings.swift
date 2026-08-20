@@ -59,6 +59,29 @@ enum S {
 
     static var applyNames: String { t("summary.apply_names") }
 
+    // Mapa mental
+    static var mindMapAddChild: String { t("mindmap.add_child") }
+    static var mindMapAddSibling: String { t("mindmap.add_sibling") }
+    static var mindMapDelete: String { t("mindmap.delete") }
+    static var mindMapZoomIn: String { t("mindmap.zoom_in") }
+    static var mindMapZoomOut: String { t("mindmap.zoom_out") }
+    static var mindMapFit: String { t("mindmap.fit") }
+    static var mindMapNewNode: String { t("mindmap.new_node") }
+    static var mindMapOutdated: String { t("mindmap.outdated") }
+    static var mindMapGraft: String { t("mindmap.graft") }
+    static var mindMapUseNew: String { t("mindmap.use_new") }
+    static var mindMapKeepMine: String { t("mindmap.keep_mine") }
+    static var mindMapHint: String { t("mindmap.hint") }
+    static var deleteBranch: String { t("mindmap.delete_branch") }
+
+    static func deleteBranchQuestion(_ label: String) -> String {
+        String(format: t("mindmap.delete_branch_question"), label)
+    }
+
+    static func mindMapGrafted(_ count: Int) -> String {
+        String(format: t("mindmap.grafted"), count)
+    }
+
     static func summarizingPart(_ index: Int, _ total: Int) -> String {
         String(format: t("summary.working_part"), index, total)
     }
@@ -89,6 +112,7 @@ enum S {
     static var exportTranscript: String { t("export.transcript") }
     static var exportSummary: String { t("export.summary") }
     static var exportInfographic: String { t("export.infographic") }
+    static var exportMindMap: String { t("export.mind_map") }
     static var exportHere: String { t("export.here") }
     static var exportFolderPrompt: String { t("export.folder_prompt") }
     static var exporting: String { t("export.exporting") }

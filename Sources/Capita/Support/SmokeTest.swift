@@ -189,6 +189,170 @@ enum SmokeTest {
         }
     }
 
+    /// `Capita --smoke-mindmap [prefixo-do-id]` confere o mapa mental de ponta a ponta.
+    ///
+    /// O mapa é a primeira parte do app cuja correção é *geométrica*: dois nós sobrepostos
+    /// ou um filho à esquerda do pai são defeitos que nenhum teste de "o JSON parseou"
+    /// pega, e que na tela se parecem com "ficou estranho". Aqui as posições calculadas são
+    /// medidas uma contra a outra.
+    static var wantsMindMap: Bool {
+        CommandLine.arguments.contains("--smoke-mindmap")
+    }
+
+    static func runMindMap(state: AppState) {
+        let all = RecordingStore.shared.loadAll()
+        let requested = CommandLine.arguments
+            .drop { $0 != "--smoke-mindmap" }.dropFirst().first
+        let chosen = requested.flatMap { prefix in
+            all.first { $0.id.uuidString.lowercased().hasPrefix(prefix.lowercased()) }
+        }
+
+        guard let recording = chosen ?? all.first(where: {
+            state.summaries.summary(for: $0.id)?.mindMap != nil
+        }) else {
+            fail("nenhuma gravação com resumo encontrada")
+            return
+        }
+        guard let summary = state.summaries.summary(for: recording.id),
+              let generated = summary.mindMap, !generated.children.isEmpty else {
+            fail("essa gravação não tem mapa mental no resumo")
+            return
+        }
+
+        print("▸ Gravação \(recording.id) — \(summary.title)")
+
+        guard let map = state.mindMaps.mapOrCreate(for: recording.id, from: summary) else {
+            fail("o mapa não pôde ser criado a partir do resumo")
+            return
+        }
+
+        // 1. Geometria.
+        let layout = MindMapLayout.compute(map)
+        print("\n▸ Layout: \(layout.nodes.count) nós, "
+              + "\(Int(layout.size.width))×\(Int(layout.size.height)) pt")
+
+        for node in layout.nodes.sorted(by: { $0.frame.minY < $1.frame.minY }) {
+            let indent = String(repeating: "  ", count: node.depth)
+            print(String(format: "  %@%-@ (x %.0f, y %.0f, %.0f×%.0f)",
+                         indent, node.label as NSString,
+                         node.frame.minX, node.frame.minY,
+                         node.frame.width, node.frame.height))
+        }
+
+        for (index, node) in layout.nodes.enumerated() {
+            for other in layout.nodes[(index + 1)...] where node.frame.intersects(other.frame) {
+                fail("os nós “\(node.label)” e “\(other.label)” se sobrepõem")
+                return
+            }
+        }
+        for edge in layout.edges where edge.to.x <= edge.from.x {
+            fail("uma ligação aponta para trás — filho à esquerda do pai")
+            return
+        }
+        guard layout.nodes.allSatisfy({
+            $0.frame.maxX <= layout.size.width && $0.frame.maxY <= layout.size.height
+        }) else {
+            fail("há nó fora da área calculada — a imagem exportada sairia cortada")
+            return
+        }
+        print("\n  ✓ nenhum nó se sobrepõe, nenhuma ligação aponta para trás")
+
+        // 2. Edição, em memória: o mapa salvo do usuário não é cobaia.
+        var draft = map
+        let firstBranch = draft.root.children.first!.id
+        guard let added = draft.addChild("Ramo de teste", to: firstBranch),
+              draft.node(added) != nil, draft.wasEdited else {
+            fail("addChild não inseriu o nó")
+            return
+        }
+        draft.rename(added, to: "Ramo renomeado")
+        guard draft.node(added)?.label == "Ramo renomeado" else {
+            fail("rename não aplicou")
+            return
+        }
+
+        // A guarda que importa: mover um nó para dentro da própria subárvore
+        // desconectaria o ramo inteiro do mapa, e ele sumiria sem aviso.
+        let deep = draft.addChild("Folha", to: added)!
+        draft.move(firstBranch, under: deep)
+        guard draft.node(firstBranch) != nil, draft.node(deep) != nil else {
+            fail("mover um nó para dentro de si mesmo desmontou a árvore")
+            return
+        }
+        guard draft.parent(of: firstBranch) == draft.root.id else {
+            fail("o nó foi movido para dentro da própria subárvore")
+            return
+        }
+
+        let secondBranch = draft.root.children.dropFirst().first?.id
+        if let secondBranch {
+            draft.move(added, under: secondBranch)
+            guard draft.parent(of: added) == secondBranch else {
+                fail("mover para outro pai não funcionou")
+                return
+            }
+        }
+        draft.remove(added)
+        guard draft.node(added) == nil, draft.node(deep) == nil else {
+            fail("remover o ramo deixou nós órfãos")
+            return
+        }
+        print("  ✓ criar, renomear, mover e apagar — inclusive a recusa de mover para dentro de si")
+
+        // 3. Fusão: o que importa é o que ela NÃO faz — apagar a edição.
+        var edited = MindMap(from: generated)
+        edited.rename(edited.root.children.first!.id, to: "Rótulo que eu escrevi")
+        let mine = edited.addChild("Só meu", to: edited.root.id)!
+        let brought = edited.graftNewBranches(from: generated)
+        guard edited.node(mine) != nil,
+              edited.node(edited.root.children.first!.id)?.label == "Rótulo que eu escrevi"
+        else {
+            fail("a fusão apagou a edição do usuário")
+            return
+        }
+        print("  ✓ fusão preservou a edição e trouxe \(brought) nó(s) de volta "
+              + "(o ramo renomeado, que para ela é novo)")
+
+        // E o que ela não pode fazer: duplicar o mapa inteiro quando nada mudou de nome.
+        var untouched = MindMap(from: generated)
+        _ = untouched.addChild("Só meu", to: untouched.root.id)
+        guard untouched.graftNewBranches(from: generated) == 0 else {
+            fail("a fusão duplicou ramos que já existiam")
+            return
+        }
+        print("  ✓ fusão de um mapa idêntico não duplica nada")
+
+        // 4. Imagem: o mapa inteiro, não o que caberia na janela.
+        let png = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("capita-mapa.png")
+        do {
+            try SummaryExporter.writeMindMapPNG(map, title: summary.title, to: png)
+        } catch {
+            fail(error.localizedDescription)
+            return
+        }
+        let bytes = (try? FileManager.default.attributesOfItem(atPath: png.path)[.size])
+            .flatMap { $0 as? Int } ?? 0
+        guard bytes > 10_000, let image = NSImage(contentsOf: png) else {
+            fail("o PNG do mapa saiu vazio")
+            return
+        }
+
+        // A imagem tem de cobrir a extensão natural do mapa — em 2x, por causa da escala.
+        let expected = layout.size.width * 2
+        guard image.representations.first.map({ CGFloat($0.pixelsWide) >= expected }) == true
+        else {
+            fail("a imagem saiu mais estreita que o mapa: ele foi cortado")
+            return
+        }
+        print("  ✓ imagem \(image.representations.first?.pixelsWide ?? 0)×"
+              + "\(image.representations.first?.pixelsHigh ?? 0) px, \(format(bytes: bytes))")
+        print("    \(png.path)")
+
+        print("\n✓ SUCESSO")
+        NSApp.terminate(nil)
+    }
+
     /// `Capita --smoke-engines` detecta os motores de IA e testa o escolhido.
     static var wantsEngines: Bool {
         CommandLine.arguments.contains("--smoke-engines")

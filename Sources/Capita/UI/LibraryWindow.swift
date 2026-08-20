@@ -88,7 +88,9 @@ struct LibraryView: View {
         }
         .onAppear {
             state.refreshRecordings()
-            selection = selection ?? state.recordings.first?.id
+            selection = selection
+                ?? Diagnostics.requestedRecording(among: state.recordings)?.id
+                ?? state.recordings.first?.id
         }
     }
 

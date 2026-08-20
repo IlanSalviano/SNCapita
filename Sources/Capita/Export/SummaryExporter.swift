@@ -105,6 +105,23 @@ enum SummaryExporter {
         // Retina: o padrão renderiza a 1x e a imagem sai borrada em qualquer tela moderna.
         renderer.scale = 2
 
+        try write(renderer, to: url)
+    }
+
+    /// Rasteriza o mapa mental inteiro.
+    ///
+    /// Sem `frame`: o tamanho vem do layout, que já sabe a extensão natural do mapa. Fixar
+    /// uma largura aqui cortaria os ramos mais fundos — e é justamente o mapa grande, o
+    /// que não cabe na janela, que alguém quer levar para fora do app.
+    @MainActor
+    static func writeMindMapPNG(_ map: MindMap, title: String, to url: URL) throws {
+        let renderer = ImageRenderer(content: MindMapStatic(map: map, title: title))
+        renderer.scale = 2
+        try write(renderer, to: url)
+    }
+
+    @MainActor
+    private static func write<V: View>(_ renderer: ImageRenderer<V>, to url: URL) throws {
         guard let image = renderer.nsImage,
               let data = image.tiffRepresentation,
               let bitmap = NSBitmapImageRep(data: data),

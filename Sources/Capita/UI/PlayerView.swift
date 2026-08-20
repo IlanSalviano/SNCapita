@@ -13,7 +13,7 @@ struct RecordingDetailView: View {
     @State private var player = PlayerController()
     @State private var transcript: Transcript?
     @State private var loadError: String?
-    @State private var tab: Tab = .transcript
+    @State private var tab: Tab = Diagnostics.opensSummary ? .summary : .transcript
 
     private enum Tab: Hashable { case transcript, summary }
 
