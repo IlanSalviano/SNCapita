@@ -21,7 +21,7 @@ intocada em `3a13a0b`.
 | `e8f9be7` | Exportação: levar a reunião para fora do Capita |
 | `7ad394b` | Fase 4: a reunião vira ata |
 | `7ba78f4` | Sair sem acordar o assert do ggml |
-| `(fase 5)` | Título de verdade nas gravações |
+| `8e9aada` | Fase 5: a gravação ganha nome |
 
 A ordem dos três primeiros é captura → exportação → Fase 4 porque nessa ordem nenhum
 commit depende do seguinte. **Foram verificados com `git checkout` e build limpo**: cada
