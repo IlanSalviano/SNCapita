@@ -12,8 +12,11 @@ make dmg     # instalador (536 MB, tudo embarcado)
 
 ## O estado do repositório
 
-Tudo vive na branch **`fase-4-e-correcao-de-captura`**, **sem push**. A `main` está
-intocada em `3a13a0b`.
+Tudo está na **`main`**, em `147f3a4`. A branch `fase-4-e-correcao-de-captura` foi
+integrada por fast-forward em 20/08/2026 e não tem mais nada além do que a `main` já tem.
+
+**Não há remoto configurado** — `git remote -v` é vazio. Nada foi publicado em lugar
+nenhum; o repositório vive só nesta máquina.
 
 | | |
 |---|---|
@@ -24,30 +27,26 @@ intocada em `3a13a0b`.
 | `8e9aada` | Fase 5: a gravação ganha nome |
 | `c2e685a` | Retomar a transcrição interrompida na abertura |
 | `29485fd` | Fase 6: o mapa mental vira mapa |
+| `56bcf5c` | As duas pontas soltas da Fase 5 e da Fase 6 |
+| `147f3a4` | Notarizar: o caminho inteiro, num comando |
 
-A ordem dos três primeiros é captura → exportação → Fase 4 porque nessa ordem nenhum
-commit depende do seguinte. **Foram verificados com `git checkout` e build limpo**: cada
-um compila sozinho, então `git bisect` funciona.
+Os três primeiros foram verificados um a um com `git checkout` e build limpo, então
+`git bisect` funciona sobre eles.
 
 ⚠ A identidade do git foi configurada **só neste repositório** (`git config user.name`, sem
 `--global`) — não havia nenhuma e o commit falhava.
 
-O motor de IA não está mais fixado no Ollama: a preferência foi apagada e a cascata volta
-a escolher sozinha (nesta máquina, o Claude Code). Para fixar de novo, Ajustes; para
-soltar, `defaults delete com.ilansalviano.capita intelligence.preferredProvider`.
+O motor de IA não está fixado: a cascata escolhe sozinha (nesta máquina, o Claude Code).
+Para fixar, Ajustes; para soltar,
+`defaults delete com.ilansalviano.capita intelligence.preferredProvider`.
 
 ---
 
 ## O que fazer primeiro na próxima sessão
 
-O mapa mental foi conferido na tela e funciona, gestos inclusive.
-`Capita --open-summary <prefixo-do-id>` abre a biblioteca já na ata, para a próxima vez.
-
-Duas pontas soltas pequenas:
-
-1. **O título do resumo só é aplicado quando o resumo é salvo**, então reuniões resumidas
-   antes da Fase 5 continuam com o título curto até serem regeradas.
-2. **Um ramo renomeado volta duplicado na fusão do mapa mental** — ver Fase 6.
+**Notarizar.** É a única coisa entre o app e outra máquina, e falta só a credencial —
+ver "Notarização" mais abaixo para os dois passos e o porquê de cada um. Com eles no
+lugar, `make notarize` faz o resto sozinho.
 
 Depois disso, o que sobrou do plano: Ask AI (RAG), detecção de reunião com notas e
 screenshots durante a call, e busca global.
