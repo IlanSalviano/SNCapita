@@ -22,6 +22,8 @@ intocada em `3a13a0b`.
 | `7ad394b` | Fase 4: a reunião vira ata |
 | `7ba78f4` | Sair sem acordar o assert do ggml |
 | `8e9aada` | Fase 5: a gravação ganha nome |
+| `c2e685a` | Retomar a transcrição interrompida na abertura |
+| `29485fd` | Fase 6: o mapa mental vira mapa |
 
 A ordem dos três primeiros é captura → exportação → Fase 4 porque nessa ordem nenhum
 commit depende do seguinte. **Foram verificados com `git checkout` e build limpo**: cada
