@@ -60,8 +60,31 @@ final class TranscriptionService {
     /// os núcleos disponíveis, então rodar duas em paralelo só as deixaria mais lentas.
     func enqueue(_ id: UUID) {
         guard !hasTranscript(for: id), !queue.contains(id) else { return }
+
+        // Marca a intenção em disco antes de começar. É o que permite retomar depois de o
+        // app ser fechado no meio — nada da transcrição é salvo enquanto ela não termina.
+        RecordingStore.shared.setAwaitingTranscription(true, for: id)
+
         queue.append(id)
         Task { await processQueue() }
+    }
+
+    /// Retoma o que ficou pela metade quando o app foi fechado.
+    ///
+    /// Fechar o app logo depois de uma reunião é o caso comum, não o excepcional: a pessoa
+    /// para de gravar, vê que a transcrição começou e vai embora. Sem isto a gravação fica
+    /// para sempre sem transcrição, e nada na tela explica por quê.
+    ///
+    /// Vai pela marca, e não por "toda gravação sem transcript": gravações que alguém
+    /// escolheu não transcrever, ou que falharam por defeito no áudio, seriam retomadas a
+    /// cada abertura — minutos de CPU por vez, sem nunca dar em nada.
+    func resumePending() {
+        let pending = RecordingStore.shared.loadAll()
+            .filter { $0.awaitingTranscription && !hasTranscript(for: $0.id) }
+
+        guard !pending.isEmpty else { return }
+        Diagnostics.log("retomando \(pending.count) transcrição(ões) interrompida(s)")
+        pending.forEach { enqueue($0.id) }
     }
 
     private func processQueue() async {
@@ -78,6 +101,11 @@ final class TranscriptionService {
             } catch {
                 Diagnostics.log("transcrição falhou (\(id)): \(error.localizedDescription)")
             }
+            // Tentou e acabou — bem ou mal. A marca significa "interrompida antes de
+            // terminar"; deixá-la de pé depois de uma falha faria o app repetir a mesma
+            // falha em toda abertura.
+            RecordingStore.shared.setAwaitingTranscription(false, for: id)
+
             progress = nil
             currentRecordingID = nil
         }

@@ -122,10 +122,14 @@ enum SmokeTest {
     /// `--smoke-transcribe --title`, que é como se testa o caminho automático inteiro:
     /// transcrever, avisar o `AppState` e nomear.
     static var suppressesAutoTitle: Bool {
-        guard CommandLine.arguments.contains(where: { $0.hasPrefix("--smoke-") }) else {
-            return false
-        }
+        guard isRunning else { return false }
         return !wantsTitle && !CommandLine.arguments.contains("--title")
+    }
+
+    /// Se esta execução é um smoke test. Serve para o app não fazer, por conta própria, o
+    /// que atrapalharia a medição: nomear com IA, retomar transcrições de outras gravações.
+    static var isRunning: Bool {
+        CommandLine.arguments.contains { $0.hasPrefix("--smoke-") }
     }
 
     /// `Capita --smoke-title [prefixo-do-id]` gera o título de uma gravação já transcrita.

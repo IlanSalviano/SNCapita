@@ -41,12 +41,9 @@ soltar, `defaults delete com.ilansalviano.capita intelligence.preferredProvider`
 **Fase 6 — mapa mental gráfico, editável e exportável.** Hoje é uma árvore de leitura,
 estática. Detalhe em "Próximas fases", ao fim.
 
-Duas coisas pequenas que ficaram de fora e valem a pena antes:
-
-1. **Reenfileirar na abertura o que não tem transcript.** Fechar o app durante a
-   transcrição perde o trabalho e ninguém a retoma.
-2. **O título do resumo só é aplicado quando o resumo é salvo.** Reuniões resumidas antes
-   da Fase 5 continuam com o título curto até serem regeradas.
+Uma ponta solta pequena: **o título do resumo só é aplicado quando o resumo é salvo**, de
+modo que reuniões resumidas antes da Fase 5 continuam com o título curto até serem
+regeradas.
 
 ---
 
@@ -335,10 +332,19 @@ Verificado: `--smoke-record 8` reproduzia o abort antes e não gera crash log de
 saída do teste intacta; encerramento pelo menu e `--smoke-transcribe` continuam saindo com
 código 0.
 
-⚠ **Fechar o app durante a transcrição perde a transcrição** — a gravação fica sem
-transcript e ninguém a reenfileira na próxima abertura. Era assim antes também (o processo
-abortava do mesmo jeito); agora que o encerramento é silencioso, vale enfileirar na
-abertura o que não tem transcript.
+**Fechar o app durante a transcrição não perde mais a gravação.** A transcrição em si se
+perde — nada vai a disco antes do fim —, mas `enqueue` grava `awaitingTranscription` no
+`metadata.json` antes de começar, e a abertura seguinte retoma o que ficou marcado.
+
+⚠ Vai pela marca, e **não** por "toda gravação sem transcript". São coisas diferentes:
+esta biblioteca tem oito gravações sem transcrição que ninguém pediu para transcrever, e a
+regra ingênua as moeria a cada abertura, minutos de CPU por vez, sem nunca dar em nada. A
+marca cai quando a tentativa acaba — bem ou mal —, senão uma falha por áudio corrompido se
+repetiria para sempre.
+
+Verificado nos dois sentidos: matando o processo no meio de uma transcrição, a marca fica
+de pé e a abertura seguinte a conclui sozinha; as oito sem marca continuam intactas depois
+de 30 s de app aberto.
 
 ---
 

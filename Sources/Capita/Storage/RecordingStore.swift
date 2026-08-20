@@ -21,6 +21,13 @@ struct Recording: Identifiable, Codable, Sendable {
     var startedAt: Date
     var duration: TimeInterval
 
+    /// Uma transcrição foi pedida e ainda não terminou.
+    ///
+    /// Fica no disco porque serve justamente para o caso em que o app não está mais vivo
+    /// para lembrar: fechar o Capita durante a transcrição a perde inteira — nada é salvo
+    /// antes do fim — e na abertura seguinte esta marca é o que diz o que retomar.
+    var awaitingTranscription: Bool
+
     var directoryName: String { id.uuidString }
 
     /// O que aparece na tela. Sem título de verdade, data e hora — nunca um campo vazio.
@@ -38,12 +45,13 @@ struct Recording: Identifiable, Codable, Sendable {
     }
 
     init(id: UUID, title: String, titleSource: TitleSource = .timestamp,
-         startedAt: Date, duration: TimeInterval) {
+         startedAt: Date, duration: TimeInterval, awaitingTranscription: Bool = false) {
         self.id = id
         self.title = title
         self.titleSource = titleSource
         self.startedAt = startedAt
         self.duration = duration
+        self.awaitingTranscription = awaitingTranscription
     }
 
     /// Escrito à mão porque a síntese do `Decodable` não usa valores padrão: um
@@ -57,6 +65,8 @@ struct Recording: Identifiable, Codable, Sendable {
         titleSource = try box.decodeIfPresent(TitleSource.self, forKey: .titleSource) ?? .timestamp
         startedAt = try box.decode(Date.self, forKey: .startedAt)
         duration = try box.decodeIfPresent(TimeInterval.self, forKey: .duration) ?? 0
+        awaitingTranscription = try box.decodeIfPresent(
+            Bool.self, forKey: .awaitingTranscription) ?? false
     }
 }
 
@@ -130,6 +140,15 @@ final class RecordingStore {
 
         guard (try? save(recording)) != nil else { return nil }
         return recording
+    }
+
+    /// Marca (ou desmarca) que há uma transcrição pedida e não terminada.
+    func setAwaitingTranscription(_ awaiting: Bool, for id: UUID) {
+        guard var recording = load(id), recording.awaitingTranscription != awaiting else {
+            return
+        }
+        recording.awaitingTranscription = awaiting
+        try? save(recording)
     }
 
     func load(_ id: UUID) -> Recording? {
