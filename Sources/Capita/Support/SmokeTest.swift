@@ -543,6 +543,9 @@ enum SmokeTest {
             • Microfone            > Capita
             • Gravação de Áudio    > Capita
         """)
-        exit(1)
+        // Pelo mesmo motivo do `applicationWillTerminate`: um `exit` normal aqui aborta
+        // no assert do ggml se houver transcrição em curso, e o teste reportaria um crash
+        // no lugar da falha que ele acabou de diagnosticar.
+        Termination.exitNow(1)
     }
 }

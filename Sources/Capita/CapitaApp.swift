@@ -69,6 +69,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// arquivos WAV só são finalizados no stop. Fechamos a sessão antes de sair.
     func applicationWillTerminate(_ notification: Notification) {
         if state.isRecording { state.toggleRecording() }
+
+        // E saímos por conta própria: deixar o `exit` do AppKit rodar os destrutores
+        // estáticos do ggml aborta o processo se uma transcrição ainda estiver viva.
+        // Ver `Termination`.
+        Termination.exitNow()
     }
 
     /// Sem isto, fechar a última janela encerraria o app — o que é errado para um agente

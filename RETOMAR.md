@@ -247,12 +247,38 @@ selos que sejam nome de ícone.
 
 ---
 
-## Defeito conhecido, não corrigido
+## O abort ao encerrar — corrigido em 20/08/2026
 
-**O app aborta ao encerrar**, num assert do ggml/Metal
-(`ggml_metal_device_free` durante `exit`, via `__cxa_finalize_ranges`). Acontece depois de
-tudo funcionar, então não perde dado — mas todo encerramento gera um crash log. Vem do
-whisper.cpp vendorizado; a ordem de destruição do backend Metal na saída do processo.
+O sintoma era "o app aborta ao encerrar", num assert do ggml/Metal
+(`ggml_metal_device_free` durante `exit`, via `__cxa_finalize_ranges`). Os dez crash logs
+diziam mais: **todos** vinham do `SmokeTest.report`, nenhum de um encerramento comum.
+
+O assert é `GGML_ASSERT([rsets->data count] == 0)` em `ggml_metal_rsets_free`, com o
+comentário "most likely you haven't deallocated all Metal resources before exiting". Cada
+buffer Metal entra num residency set do dispositivo ao ser criado e sai ao ser liberado; o
+vetor global de dispositivos é destruído na saída do processo e confere se o conjunto
+ficou vazio.
+
+Não é vazamento nosso: o `whisper_context` é liberado no `deinit` do `WhisperEngine`, e um
+`--smoke-transcribe` que roda até o fim encerra limpo — confirmado. O que existe é uma
+**janela**: parar de gravar dispara a transcrição, e o `--smoke-record` encerra 0,5 s
+depois, com o contexto vivo. O mesmo acontece com quem fecha o app logo após uma reunião.
+
+Interromper o whisper antes de sair não salvaria nada — a transcrição só vai a disco
+quando termina. Então o encerramento passa por `Termination.exitNow`, que sai com `_exit`
+e não roda os destrutores estáticos do C++. ⚠ `_exit` pula os `atexit`, inclusive o flush
+do stdout, que é bufferizado quando a saída vai para um pipe (`make smoke-record | tail`):
+há um `fflush(nil)` explícito, e um `UserDefaults.synchronize()` porque escritas recentes
+de preferência são assíncronas.
+
+Verificado: `--smoke-record 8` reproduzia o abort antes e não gera crash log depois, com a
+saída do teste intacta; encerramento pelo menu e `--smoke-transcribe` continuam saindo com
+código 0.
+
+⚠ **Fechar o app durante a transcrição perde a transcrição** — a gravação fica sem
+transcript e ninguém a reenfileira na próxima abertura. Era assim antes também (o processo
+abortava do mesmo jeito); agora que o encerramento é silencioso, vale enfileirar na
+abertura o que não tem transcript.
 
 ---
 
