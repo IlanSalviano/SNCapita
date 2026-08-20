@@ -18,10 +18,19 @@ struct MindMap: Codable, Sendable {
         var label: String
         var children: [Node]
 
-        init(id: UUID = UUID(), label: String, children: [Node] = []) {
+        /// Como a IA chamou este nó, se foi ela quem o criou. Sobrevive a renomear.
+        ///
+        /// É o que impede a fusão de trazer de volta, como se fosse novidade, um ramo que
+        /// você renomeou: o rótulo mudou, a origem não. Nós criados por você não têm
+        /// origem nenhuma — e é assim que deve ser, porque nada no resumo os explica.
+        var sourceLabel: String?
+
+        init(id: UUID = UUID(), label: String, children: [Node] = [],
+             sourceLabel: String? = nil) {
             self.id = id
             self.label = label
             self.children = children
+            self.sourceLabel = sourceLabel
         }
 
         init(from decoder: Decoder) throws {
@@ -29,6 +38,7 @@ struct MindMap: Codable, Sendable {
             id = try box.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
             label = try box.decodeIfPresent(String.self, forKey: .label) ?? ""
             children = try box.decodeIfPresent([Node].self, forKey: .children) ?? []
+            sourceLabel = try box.decodeIfPresent(String.self, forKey: .sourceLabel)
         }
     }
 
@@ -56,7 +66,8 @@ struct MindMap: Codable, Sendable {
     }
 
     private static func convert(_ node: MeetingSummary.MindNode) -> Node {
-        Node(label: node.label, children: node.children.map(convert))
+        Node(label: node.label, children: node.children.map(convert),
+             sourceLabel: node.label)
     }
 
     /// Identifica o conteúdo do mapa gerado, ignorando identidade e ordem de escrita.
@@ -71,15 +82,22 @@ struct MindMap: Codable, Sendable {
 
     // MARK: - Edição
 
-    /// Todos os rótulos do mapa, em minúsculas — a base da fusão por nome.
+    /// Todos os nomes pelos quais o mapa conhece seus nós — o atual e, quando veio da IA,
+    /// o original. A fusão compara contra os dois, senão um ramo renomeado voltaria
+    /// duplicado a cada resumo refeito.
     var labels: Set<String> {
         var result: Set<String> = []
         func walk(_ node: Node) {
-            result.insert(node.label.trimmingCharacters(in: .whitespaces).lowercased())
+            result.insert(Self.key(node.label))
+            if let source = node.sourceLabel { result.insert(Self.key(source)) }
             node.children.forEach(walk)
         }
         walk(root)
         return result
+    }
+
+    static func key(_ label: String) -> String {
+        label.trimmingCharacters(in: .whitespaces).lowercased()
     }
 
     func node(_ id: UUID) -> Node? {
@@ -171,14 +189,16 @@ struct MindMap: Codable, Sendable {
     /// É a fusão possível sem inventar: um diff de árvore de verdade precisaria casar nós
     /// renomeados e movidos, e erraria em silêncio. Comparar rótulos acerta no caso que
     /// importa — o resumo refeito descobriu um assunto que o mapa editado não tem — e, no
-    /// pior caso, acrescenta um ramo repetido que a pessoa apaga com Delete.
+    /// pior caso, acrescenta um ramo repetido que a pessoa apaga com Delete. Um nó
+    /// renomeado, que seria o caso mais provável de repetição, é reconhecido pela origem
+    /// que carrega — ver `Node.sourceLabel`.
     @discardableResult
     mutating func graftNewBranches(from other: MeetingSummary.MindNode) -> Int {
         let known = labels
         var added = 0
 
         func walk(_ node: MeetingSummary.MindNode, attachTo parentID: UUID) {
-            let key = node.label.trimmingCharacters(in: .whitespaces).lowercased()
+            let key = Self.key(node.label)
             guard !key.isEmpty else { return }
 
             if known.contains(key) {
@@ -214,7 +234,8 @@ struct MindMap: Codable, Sendable {
 
     private func firstNode(labeled key: String) -> Node? {
         func walk(_ node: Node) -> Node? {
-            if node.label.trimmingCharacters(in: .whitespaces).lowercased() == key {
+            if Self.key(node.label) == key
+                || node.sourceLabel.map(Self.key) == key {
                 return node
             }
             for child in node.children {

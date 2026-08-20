@@ -90,6 +90,22 @@ final class SummaryService {
     /// Avisa que o título da gravação mudou, para a lista se redesenhar.
     var onTitleChanged: ((UUID) -> Void)?
 
+    /// Dá nome às gravações que já têm ata mas ficaram na data e hora.
+    ///
+    /// São as resumidas antes da Fase 5, quando o título do resumo não ia para o
+    /// `metadata.json`. O nome bom está a um `Data(contentsOf:)` de distância e a lista o
+    /// ignorava — pior ainda porque o resumo custou minutos para ser escrito.
+    ///
+    /// Só toca em quem está em `timestamp`: um título gerado pela chamada curta já é
+    /// melhor que nada, e um digitado é intocável.
+    func adoptTitlesFromSavedSummaries() {
+        for recording in RecordingStore.shared.loadAll()
+        where recording.titleSource == .timestamp {
+            guard let summary = summary(for: recording.id) else { continue }
+            applyTitle(from: summary, to: recording.id)
+        }
+    }
+
     func store(_ summary: MeetingSummary, for id: UUID) throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

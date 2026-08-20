@@ -310,17 +310,26 @@ enum SmokeTest {
             fail("a fusão apagou a edição do usuário")
             return
         }
-        print("  ✓ fusão preservou a edição e trouxe \(brought) nó(s) de volta "
-              + "(o ramo renomeado, que para ela é novo)")
-
-        // E o que ela não pode fazer: duplicar o mapa inteiro quando nada mudou de nome.
-        var untouched = MindMap(from: generated)
-        _ = untouched.addChild("Só meu", to: untouched.root.id)
-        guard untouched.graftNewBranches(from: generated) == 0 else {
-            fail("a fusão duplicou ramos que já existiam")
+        // O ramo renomeado não pode voltar como novidade: ele guarda a origem, e é por
+        // ela que a fusão o reconhece. Sem isso, todo resumo refeito duplicaria o mapa.
+        guard brought == 0 else {
+            fail("a fusão trouxe \(brought) nó(s) que já existiam — um deles renomeado")
             return
         }
-        print("  ✓ fusão de um mapa idêntico não duplica nada")
+        print("  ✓ fusão preservou a edição e não duplicou o ramo renomeado")
+
+        // E o inverso: um ramo de verdade novo entra.
+        var extended = generated
+        extended.children.append(.init(label: "Assunto que só apareceu agora"))
+        var receiving = MindMap(from: generated)
+        receiving.rename(receiving.root.children.first!.id, to: "Outro nome meu")
+        guard receiving.graftNewBranches(from: extended) == 1,
+              receiving.labels.contains(MindMap.key("Assunto que só apareceu agora"))
+        else {
+            fail("a fusão não trouxe o ramo novo do resumo")
+            return
+        }
+        print("  ✓ fusão trouxe o ramo que só existe no resumo novo")
 
         // 4. Imagem: o mapa inteiro, não o que caberia na janela.
         let png = URL(fileURLWithPath: NSTemporaryDirectory())

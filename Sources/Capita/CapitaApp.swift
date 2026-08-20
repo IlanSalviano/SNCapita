@@ -49,7 +49,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Fechar o app durante a transcrição a perde inteira: nada é salvo antes do fim.
         // Retomamos na abertura, antes de qualquer coisa que o usuário peça.
-        if !SmokeTest.isRunning { state.transcription.resumePending() }
+        if !SmokeTest.isRunning {
+            state.transcription.resumePending()
+            // Atas escritas antes da Fase 5 têm um título bom que nunca chegou à lista.
+            state.summaries.adoptTitlesFromSavedSummaries()
+        }
 
         if let seconds = SmokeTest.requestedDuration {
             SmokeTest.run(seconds: seconds, state: state)

@@ -100,6 +100,11 @@ struct MeetingSummary: Codable, Sendable {
         var children: [MindNode] = []
         var id: String { label }
 
+        init(label: String, children: [MindNode] = []) {
+            self.label = label
+            self.children = children
+        }
+
         init(from decoder: Decoder) throws {
             let box = try decoder.container(keyedBy: CodingKeys.self)
             label = box.value(.label, or: "")
