@@ -68,9 +68,11 @@ echo "▸ Pronto: $DMG ($SIZE)"
 if [ -n "${CODESIGN_IDENTITY:-}" ]; then
     echo "▸ Assinando o DMG com $CODESIGN_IDENTITY"
     codesign --force --sign "$CODESIGN_IDENTITY" "$DMG"
-    echo "  Próximo passo para distribuir:"
-    echo "    xcrun notarytool submit \"$DMG\" --keychain-profile <perfil> --wait"
-    echo "    xcrun stapler staple \"$DMG\""
+    # Quando quem chama é o notarize.sh, o envio e o grampo vêm logo a seguir e repetir
+    # os comandos aqui só confundiria quem lê a saída.
+    if [ -z "${NOTARIZING:-}" ]; then
+        echo "  Falta notarizar — 'make notarize' faz assinatura, envio e grampo de uma vez."
+    fi
 else
     echo
     echo "⚠ DMG NÃO notarizado. Serve para testar nesta máquina, mas noutra o macOS vai"

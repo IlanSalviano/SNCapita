@@ -7,7 +7,8 @@ e de 68 minutos.
 ```bash
 make run     # compila, instala em ~/Applications e abre (ícone na barra de menus)
 make stop
-make dmg     # instalador (536 MB, tudo embarcado)
+make dmg      # instalador (537 MB, tudo embarcado) — só para esta máquina
+make notarize # o instalador que abre em qualquer máquina
 ```
 
 ## O estado do repositório
@@ -44,9 +45,9 @@ Para fixar, Ajustes; para soltar,
 
 ## O que fazer primeiro na próxima sessão
 
-**Notarizar.** É a única coisa entre o app e outra máquina, e falta só a credencial —
-ver "Notarização" mais abaixo para os dois passos e o porquê de cada um. Com eles no
-lugar, `make notarize` faz o resto sozinho.
+**Distribuir e ver o que acontece.** O `build/Capita.dmg` está notarizado e grampeado:
+mande para outra máquina e confirme que abre — é o único teste que esta máquina não pode
+fazer por si.
 
 Depois disso, o que sobrou do plano: Ask AI (RAG), detecção de reunião com notas e
 screenshots durante a call, e busca global.
@@ -424,36 +425,49 @@ de 30 s de app aberto.
 
 ---
 
-## Notarização — pronta, faltando duas credenciais
+## Notarização — feita em 20/08/2026
 
-`make notarize` faz o caminho inteiro: assina com Developer ID (hardened runtime,
-timestamp, entitlements), gera o DMG, envia para a Apple, espera, grampeia o carimbo e
-confere como o Gatekeeper vai ver — inclusive abrindo o DMG e testando o app **de dentro
-dele**, que é a cópia que chega na outra máquina.
+`make notarize` faz o caminho inteiro num comando: assina com Developer ID (hardened
+runtime, timestamp, entitlements), gera o DMG, envia para a Apple, espera, grampeia o
+carimbo e confere como o Gatekeeper vai ver.
 
-O script recusa começar sem os dois pré-requisitos, com a instrução na tela:
+O DMG de **537 MB** foi aceito na primeira tentativa (submissão
+`d6ae58ae-8e18-43a6-8742-04a7bfa3864e`), em cerca de dez minutos — quase tudo upload.
 
-1. **Certificado "Developer ID Application"** no keychain de login. Xcode → Settings →
-   Accounts → sua Apple ID → Manage Certificates → "+" → Developer ID Application. Exige
-   conta paga do Developer Program; a Apple ID solta do Xcode não serve.
-2. **Credenciais do notarytool**, guardadas uma vez:
-   `xcrun notarytool store-credentials capita --apple-id … --team-id … --password …`.
-   A senha é uma *app-specific password* de appleid.apple.com, nunca a senha da conta.
+```
+Capita.dmg:  accepted   source=Notarized Developer ID
+Capita.app:  accepted   source=Notarized Developer ID
+             origin=Developer ID Application: Ilan Salviano (22CZXFP6W7)
+```
+
+O app testado ali é o de **dentro do DMG montado**, não o de `build/`: só ele passou pelo
+empacotamento, que é o caminho real até a outra máquina. E `stapler validate` passando
+significa que o Gatekeeper não vai precisar de internet do outro lado.
 
 ⚠ **O hardened runtime, que a notarização exige, fecha o áudio por padrão.** Sem
-`com.apple.security.device.audio-input` o app assinado abre, roda e grava **silêncio** —
-o pedido de permissão nem chega a aparecer. `Resources/Capita.entitlements` existe por
-isso, e o `notarize.sh` confere as duas coisas (flag `runtime` e o entitlement) antes de
-enviar, porque descobrir depois custa a viagem inteira.
+`com.apple.security.device.audio-input` o app assinado abre, roda e grava **silêncio** — o
+pedido de permissão nem chega a aparecer. `Resources/Capita.entitlements` existe por isso,
+e o `notarize.sh` confere as duas coisas (flag `runtime` e o entitlement) antes de enviar.
+Verificado antes de ter o certificado, assinando com o certificado local: gravação de 8 s
+com RMS 2646 na trilha do sistema e 1767 no microfone — sinal de verdade, não silêncio.
 
-Testado antes de ter o certificado: o app assinado **com hardened runtime e o
-entitlement**, usando o certificado local, gravou as duas trilhas com sinal de verdade
-(RMS 2646 no sistema, 1767 no microfone) e não pediu permissão de novo. O que falta provar
-na Apple é só a notarização em si.
+⚠ **`codesign | grep -q` mente sob `set -o pipefail`.** O grep sai no primeiro acerto,
+fecha o cano, o `codesign` morre de SIGPIPE e o pipeline devolve erro — a conferência
+acusou "o app não ficou com hardened runtime" sobre um app que estava perfeito. As duas
+verificações guardam a saída numa variável antes de procurar nela.
 
-⚠ Assinar com Developer ID muda o Designated Requirement, e o macOS trata isso como outro
-app: as permissões de microfone e de gravação de áudio serão pedidas mais uma vez, na
-primeira execução da versão distribuída. Uma vez só.
+⚠ **Assinar com Developer ID muda o Designated Requirement**, e o macOS trata isso como
+outro app: microfone e gravação de áudio serão pedidos mais uma vez na primeira execução
+da versão distribuída. Uma vez só. O `~/Applications/Capita.app` desta máquina ainda é o
+build assinado com o certificado local — o próximo `make run` o substitui pelo de Developer
+ID e dispara esse pedido.
+
+Os dois pré-requisitos, para quando o certificado expirar (cinco anos) ou a máquina mudar:
+um certificado **Developer ID Application** no keychain (Xcode → Settings → Accounts →
+Manage Certificates → "+") e o perfil `capita` do notarytool
+(`xcrun notarytool store-credentials capita --apple-id … --team-id 22CZXFP6W7`, com uma
+*app-specific password* de appleid.apple.com). O script recusa começar sem eles, com a
+instrução na tela.
 
 ---
 

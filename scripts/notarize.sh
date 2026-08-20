@@ -91,14 +91,25 @@ codesign --verify --strict --deep --verbose=1 "$APP"
 # entitlement de áudio não estiver lá, o app notarizado grava silêncio na máquina de
 # destino — e o pedido de permissão nem aparece. Conferir aqui é barato; descobrir isso
 # depois é uma versão distribuída inútil.
-codesign -d --verbose=2 "$APP" 2>&1 | grep -q "flags=.*runtime" \
-    || { echo "✗ o app não ficou com hardened runtime"; exit 1; }
-codesign -d --entitlements - --xml "$APP" 2>/dev/null \
-    | grep -q "com.apple.security.device.audio-input" \
-    || { echo "✗ falta o entitlement de entrada de áudio"; exit 1; }
+#
+# As duas conferências guardam a saída antes de procurar nela. Com `set -o pipefail`,
+# um `codesign | grep -q` falha mesmo quando encontra: o grep sai no primeiro acerto,
+# fecha o cano, o codesign morre de SIGPIPE e o pipeline devolve erro. O sintoma é uma
+# acusação convincente e falsa — "o app não ficou com hardened runtime".
+SIGNATURE=$(codesign -d --verbose=2 "$APP" 2>&1)
+ENTS=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null || true)
+
+case "$SIGNATURE" in
+    *"flags="*"runtime"*) ;;
+    *) echo "✗ o app não ficou com hardened runtime"; exit 1 ;;
+esac
+case "$ENTS" in
+    *"com.apple.security.device.audio-input"*) ;;
+    *) echo "✗ falta o entitlement de entrada de áudio"; exit 1 ;;
+esac
 echo "  ✓ hardened runtime e entitlement de áudio"
 
-CODESIGN_IDENTITY="$IDENTITY" "$ROOT/scripts/make-dmg.sh"
+NOTARIZING=1 CODESIGN_IDENTITY="$IDENTITY" "$ROOT/scripts/make-dmg.sh"
 
 # MARK: - Notarização
 
