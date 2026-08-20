@@ -40,9 +40,8 @@ soltar, `defaults delete com.ilansalviano.capita intelligence.preferredProvider`
 
 ## O que fazer primeiro na próxima sessão
 
-**Olhar o mapa mental na tela e mexer nele.** Foi a única parte da Fase 6 que não deu para
-verificar em imagem — arrastar um nó para outro pai, o duplo clique que renomeia, o pan e o
-zoom. `Capita --open-summary <prefixo-do-id>` abre a biblioteca já na ata.
+O mapa mental foi conferido na tela e funciona, gestos inclusive.
+`Capita --open-summary <prefixo-do-id>` abre a biblioteca já na ata, para a próxima vez.
 
 Duas pontas soltas pequenas:
 
@@ -244,9 +243,9 @@ mapa de 23 nós da reunião de 68 min saiu em 1970×1278 px, 235 KB.
 | Fusão | preserva a edição; mapa idêntico não duplica nada |
 | PNG | 1970×1278 px, ≥ 2× a largura do layout |
 
-⚠ **A interface interativa não foi verificada em imagem** — pan, zoom, arrastar e o campo
-de renomear. O que a fotografia cobriu foi a lista da biblioteca e a aba de resumo; o
-desenho do mapa em si está provado pelo PNG, que usa a mesma view dos nós.
+A interface interativa — pan, zoom, arrastar para outro pai e o campo de renomear — foi
+conferida na tela pelo Ilan em 20/08/2026. O que os testes cobrem é a geometria e a
+persistência; os gestos, só o olho.
 
 ---
 
