@@ -20,9 +20,12 @@ final class RecordingSession {
     init() throws {
         let id = UUID()
         directory = try RecordingStore.shared.createDirectory(for: id)
+        // Sem título ainda: quem nomeia é a IA, depois da transcrição, ou o usuário. Até
+        // lá a biblioteca mostra data e hora, derivadas de `startedAt`.
         recording = Recording(
             id: id,
-            title: Self.defaultTitle(),
+            title: "",
+            titleSource: .timestamp,
             startedAt: Date(),
             duration: 0)
     }
@@ -74,12 +77,5 @@ final class RecordingSession {
 
     private func captureError(_ operation: () throws -> Void) -> Error? {
         do { try operation(); return nil } catch { return error }
-    }
-
-    private static func defaultTitle() -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: Date())
     }
 }

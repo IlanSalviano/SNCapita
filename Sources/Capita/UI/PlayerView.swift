@@ -45,7 +45,7 @@ struct RecordingDetailView: View {
             // graça se ouvir o trecho exigir voltar para a transcrição primeiro.
             playerBar
         }
-        .navigationTitle(recording.title)
+        .navigationTitle(recording.displayTitle)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 ExportMenu(recording: recording, transcript: transcript,

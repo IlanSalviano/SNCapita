@@ -32,6 +32,9 @@ enum S {
     static var notTranscribed: String { t("library.not_transcribed") }
     static var transcriptionPending: String { t("library.transcription_pending") }
     static var playbackFailed: String { t("library.playback_failed") }
+    static var naming: String { t("library.naming") }
+    static var rename: String { t("library.rename") }
+    static var useTimestampTitle: String { t("library.use_timestamp_title") }
     static var speakerYou: String { t("speaker.you") }
     static var speakerOthers: String { t("speaker.others") }
     static var participants: String { t("speaker.participants") }
@@ -102,6 +105,12 @@ enum S {
     static var use: String { t("settings.use") }
     static var detectAgain: String { t("settings.detect_again") }
     static var useBestAvailable: String { t("settings.use_best") }
+
+    /// Quando a gravação começou, na linha de baixo da lista. Curto de propósito: divide
+    /// a linha com a duração e o estado da transcrição.
+    static func startedAt(_ date: Date) -> String {
+        DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .short)
+    }
 
     /// Duração no formato mm:ss, usada na lista de gravações.
     static func duration(_ seconds: TimeInterval) -> String {

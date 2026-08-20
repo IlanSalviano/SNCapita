@@ -51,6 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SmokeTest.run(seconds: seconds, state: state)
         } else if SmokeTest.wantsTranscribe {
             SmokeTest.runTranscribe(state: state)
+        } else if SmokeTest.wantsTitle {
+            SmokeTest.runTitle(state: state)
         } else if SmokeTest.wantsEngines {
             SmokeTest.runEngines()
         } else if SmokeTest.wantsExport {

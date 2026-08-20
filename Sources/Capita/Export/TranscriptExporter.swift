@@ -57,7 +57,7 @@ enum TranscriptExporter {
             from: recording.startedAt, dateStyle: .long, timeStyle: .short)
 
         var lines = [
-            "# \(recording.title)",
+            "# \(recording.displayTitle)",
             "",
             "\(stamp) · \(S.timecode(recording.duration))",
         ]

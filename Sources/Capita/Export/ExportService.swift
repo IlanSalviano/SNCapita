@@ -193,7 +193,7 @@ final class ExportService {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH-mm"
 
-        let title = recording.title
+        let title = recording.displayTitle
             .components(separatedBy: CharacterSet(charactersIn: "/:\\"))
             .joined(separator: "-")
             .trimmingCharacters(in: .whitespacesAndNewlines)

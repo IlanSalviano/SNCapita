@@ -21,6 +21,9 @@
 "library.not_transcribed" = "Not transcribed";
 "library.transcription_pending" = "Transcription starts automatically when recording ends.";
 "library.playback_failed" = "Playback failed";
+"library.naming" = "Naming…";
+"library.rename" = "Rename";
+"library.use_timestamp_title" = "Use date and time";
 "engine.none" = "No AI engine available";
 "speaker.participants" = "Participants";
 "speaker.you" = "You";

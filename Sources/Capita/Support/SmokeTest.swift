@@ -71,7 +71,13 @@ enum SmokeTest {
             if transcript.segments.isEmpty {
                 print("  (nenhuma fala reconhecida — o áudio era música ou ruído?)")
             }
-            NSApp.terminate(nil)
+            // Com `--title`, espera o título automático: o que se quer ver aqui é a
+            // corrente inteira — transcrever, avisar o AppState, chamar a IA, salvar.
+            if CommandLine.arguments.contains("--title") {
+                pollTitle(state: state, id: id, deadline: Date().addingTimeInterval(180))
+            } else {
+                NSApp.terminate(nil)
+            }
             return
         }
 
@@ -84,6 +90,98 @@ enum SmokeTest {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             pollTranscription(state: state, id: id, started: started, deadline: deadline)
+        }
+    }
+
+    private static func pollTitle(state: AppState, id: UUID, deadline: Date) {
+        guard !state.namingRecordingIDs.contains(id) else {
+            guard Date() < deadline else {
+                fail("o título automático não chegou no tempo esperado")
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                pollTitle(state: state, id: id, deadline: deadline)
+            }
+            return
+        }
+
+        // Sem título, a gravação continua em data e hora — que é o comportamento correto
+        // quando não há motor de IA, e o log diz qual dos dois aconteceu.
+        if let recording = RecordingStore.shared.load(id) {
+            print("\n  título: \(recording.displayTitle)  [\(recording.titleSource.rawValue)]")
+        }
+        print("\n✓ SUCESSO")
+        NSApp.terminate(nil)
+    }
+
+    /// Se o título automático deve ficar quieto nesta execução.
+    ///
+    /// `--smoke-transcribe` re-transcreve gravações antigas para checar regressão, e cada
+    /// execução acordaria o motor de IA para nomear de novo o que já tem nome — no Claude
+    /// Code, dinheiro. Quem quer o título pede por ele, com `--smoke-title` — ou com
+    /// `--smoke-transcribe --title`, que é como se testa o caminho automático inteiro:
+    /// transcrever, avisar o `AppState` e nomear.
+    static var suppressesAutoTitle: Bool {
+        guard CommandLine.arguments.contains(where: { $0.hasPrefix("--smoke-") }) else {
+            return false
+        }
+        return !wantsTitle && !CommandLine.arguments.contains("--title")
+    }
+
+    /// `Capita --smoke-title [prefixo-do-id]` gera o título de uma gravação já transcrita.
+    ///
+    /// É a única forma barata de avaliar o prompt do título: um teste que só conferisse
+    /// "veio uma string" passaria com "Reunião de alinhamento", que é justamente o modo de
+    /// falha que importa. Aqui o título aparece na tela, ao lado do que já estava salvo.
+    static var wantsTitle: Bool {
+        CommandLine.arguments.contains("--smoke-title")
+    }
+
+    static func runTitle(state: AppState) {
+        let all = RecordingStore.shared.loadAll()
+        let requested = CommandLine.arguments
+            .drop { $0 != "--smoke-title" }.dropFirst().first
+        let chosen = requested.flatMap { prefix in
+            all.first { $0.id.uuidString.lowercased().hasPrefix(prefix.lowercased()) }
+        }
+
+        guard let recording = chosen
+                ?? all.first(where: { state.transcription.hasTranscript(for: $0.id) }) else {
+            fail("nenhuma gravação transcrita encontrada")
+            return
+        }
+        guard let transcript = state.transcription.transcript(for: recording.id) else {
+            fail("essa gravação ainda não foi transcrita")
+            return
+        }
+
+        Task { @MainActor in
+            print("▸ Gravação \(recording.id) (\(String(format: "%.1f", recording.duration))s)")
+            print("  título atual: \(recording.displayTitle)  [\(recording.titleSource.rawValue)]")
+
+            await state.intelligence.detect()
+            print("  motor: \(state.intelligence.activeDescription)\n")
+
+            let started = Date()
+            do {
+                let title = try await RecordingTitler.suggestTitle(
+                    for: transcript, engine: state.intelligence)
+                print("  respondeu em \(String(format: "%.1f", Date().timeIntervalSince(started)))s\n")
+                print("  → \(title)\n")
+
+                // A precedência importa mais que o título em si: um título digitado pela
+                // pessoa não pode ser substituído por palpite nenhum.
+                if recording.titleSource == .manual {
+                    print("  (não salvo: o título atual foi digitado por você e ganha do gerado)")
+                } else {
+                    state.applyTitle(title, source: .generated, to: recording.id)
+                    print("  salvo em metadata.json")
+                }
+                print("\n✓ SUCESSO")
+                NSApp.terminate(nil)
+            } catch {
+                fail(error.localizedDescription)
+            }
         }
     }
 

@@ -1,7 +1,8 @@
-# Onde paramos — 19/08/2026
+# Onde paramos — 20/08/2026
 
-**Fases 0 a 4 entregues**, mais exportação e a correção de um bug de captura que corrompia
-gravações em silêncio. Validado em duas reuniões reais, de 54 e de 68 minutos.
+**Fases 0 a 5 entregues**, mais exportação, a correção de um bug de captura que corrompia
+gravações em silêncio e o fim do abort ao encerrar. Validado em duas reuniões reais, de 54
+e de 68 minutos.
 
 ```bash
 make run     # compila, instala em ~/Applications e abre (ícone na barra de menus)
@@ -11,36 +12,41 @@ make dmg     # instalador (536 MB, tudo embarcado)
 
 ## O estado do repositório
 
-Tudo vive na branch **`fase-4-e-correcao-de-captura`**, três commits, **sem push**. A `main`
-está intocada em `3a13a0b`.
+Tudo vive na branch **`fase-4-e-correcao-de-captura`**, **sem push**. A `main` está
+intocada em `3a13a0b`.
 
 | | |
 |---|---|
 | `c9771a1` | A taxa de amostragem vem do dispositivo, não do que o tap declara |
 | `e8f9be7` | Exportação: levar a reunião para fora do Capita |
 | `7ad394b` | Fase 4: a reunião vira ata |
+| `7ba78f4` | Sair sem acordar o assert do ggml |
+| `(fase 5)` | Título de verdade nas gravações |
 
-A ordem é captura → exportação → Fase 4 porque nessa ordem nenhum commit depende do
-seguinte. **Os três foram verificados com `git checkout` e build limpo**: cada um compila
-sozinho, então `git bisect` funciona.
+A ordem dos três primeiros é captura → exportação → Fase 4 porque nessa ordem nenhum
+commit depende do seguinte. **Foram verificados com `git checkout` e build limpo**: cada
+um compila sozinho, então `git bisect` funciona.
 
 ⚠ A identidade do git foi configurada **só neste repositório** (`git config user.name`, sem
 `--global`) — não havia nenhuma e o commit falhava.
 
-⚠ O motor de IA está **fixado no Ollama** em `UserDefaults`, de um teste. Para voltar ao
-melhor disponível: Ajustes → "Usar o melhor disponível", ou
-`defaults delete com.ilansalviano.capita intelligence.preferredProvider`.
+O motor de IA não está mais fixado no Ollama: a preferência foi apagada e a cascata volta
+a escolher sozinha (nesta máquina, o Claude Code). Para fixar de novo, Ajustes; para
+soltar, `defaults delete com.ilansalviano.capita intelligence.preferredProvider`.
 
 ---
 
 ## O que fazer primeiro na próxima sessão
 
-Dois requisitos novos, ainda **não implementados**. Ver "Próximas fases" ao fim para o
-detalhe de cada um.
+**Fase 6 — mapa mental gráfico, editável e exportável.** Hoje é uma árvore de leitura,
+estática. Detalhe em "Próximas fases", ao fim.
 
-1. **Título de verdade nas gravações** — hoje a biblioteca mostra "19 Aug 2026 at 12:04".
-   Precisa mostrar um título que resuma a conversa, com data/hora e duração ao lado.
-2. **Mapa mental gráfico, editável e exportável** — hoje é uma árvore de leitura, estática.
+Duas coisas pequenas que ficaram de fora e valem a pena antes:
+
+1. **Reenfileirar na abertura o que não tem transcript.** Fechar o app durante a
+   transcrição perde o trabalho e ninguém a retoma.
+2. **O título do resumo só é aplicado quando o resumo é salvo.** Reuniões resumidas antes
+   da Fase 5 continuam com o título curto até serem regeradas.
 
 ---
 
@@ -112,6 +118,60 @@ escapa o que passar. **A segunda ainda dispara** com o Claude Code — não a re
 ⚠ **A síntese do `Decodable` do Swift ignora valores padrão.** `var x: [Item] = []` não
 salva você: se a chave faltar, o decode inteiro falha. Todos os tipos do `MeetingSummary`
 têm `init(from:)` escrito à mão. Uma reunião sem tarefas costuma vir sem `actionItems`.
+
+---
+
+## Fase 5 — Título de verdade nas gravações
+
+A lista mostrava "19 Aug 2026 at 12:04": diz *quando*, não *o quê*. Agora a primeira linha
+é o assunto e a segunda traz data, hora e duração — ao lado, não no lugar.
+
+Dois títulos chegam em momentos diferentes, e é de propósito:
+
+1. **Logo após a transcrição**, uma chamada curta só para o título (`RecordingTitler`).
+   Texto puro, não JSON: é um valor só, e JSON aqui só acrescentaria modo de falha. Medido
+   com Claude Code: **15 a 32 s**.
+2. **Quando o resumo completo é salvo**, o `MeetingSummary.title` substitui — ele leu a
+   reunião inteira, a chamada curta viu o começo.
+
+A chamada curta recebe os primeiros 5.000 caracteres e, se a reunião for longa, mais 3.000
+do meio. O começo às vezes é só saudação e espera pelos atrasados, e um título tirado dali
+batizaria a reunião de "boas-vindas".
+
+**A origem do título vive no `metadata.json`**, em `titleSource`: `timestamp`, `generated`
+ou `manual`. A precedência é a mesma dos nomes de participante — o palpite da IA cede
+sempre para a escolha da pessoa, e `RecordingStore.updateTitle` recusa sozinho a
+sobrescrita, de modo que nenhum caminho (nem os smoke tests) precisa lembrar da regra.
+`updateTitle` também relê o disco antes de salvar: entre a lista carregada e a resposta da
+IA passam-se minutos, e nesse intervalo o usuário pode ter digitado.
+
+Renomear é duplo clique na lista, ou o menu de contexto — que também tem "Usar data e
+hora" para desfazer um título e voltar ao carimbo.
+
+⚠ **A síntese do `Decodable` não usa valores padrão** — a mesma armadilha do
+`MeetingSummary`, agora no `Recording`: um `metadata.json` gravado antes desta fase não tem
+`titleSource`, e o decode inteiro falharia. A gravação sumiria da biblioteca. Por isso o
+`init(from:)` escrito à mão, com `decodeIfPresent`.
+
+⚠ **Os smoke tests não geram título** (`SmokeTest.suppressesAutoTitle`). O
+`--smoke-transcribe` re-transcreve gravações antigas para checar regressão, e cada execução
+acordaria o motor para renomear o que já tem nome — no Claude Code, dinheiro. `--title`
+liga de volta, de propósito.
+
+Sem motor de IA, nada disso acontece e a gravação continua em data e hora. Verificado:
+transcript vazio → `título não gerado: A transcrição é curta demais` → a linha continua
+`[timestamp]`.
+
+Verificado nas duas reuniões reais:
+
+| Reunião | Título gerado |
+|---|---|
+| 68 min, pt | Embarque de processos CAIXA com CSM ou aplicações |
+| 54 min, en | Organizing distributed tools and preventing AI skill duplication |
+
+O idioma segue a reunião, não a interface. E a corrente inteira — transcrever → avisar o
+`AppState` → chamar a IA → salvar — foi verificada de ponta a ponta com
+`--smoke-transcribe <id> --title`.
 
 ---
 
@@ -291,29 +351,6 @@ outra máquina: o macOS 26 só oferece "Mover para o Lixo".
 
 ## Próximas fases
 
-### Fase 5 — Título de verdade nas gravações
-
-Hoje a biblioteca lista "19 Aug 2026 at 12:04". Isso identifica *quando*, não *o quê* — e
-com trinta reuniões na lista, achar aquela sobre a arquitetura da Caixa vira uma caçada.
-
-O título precisa resumir a conversa, com **data/hora e duração ao lado**, não no lugar.
-
-O que já existe: `MeetingSummary.title` é exatamente isso, gerado e bom
-("Aligning on AI Tools for Enterprise Accounts", "Governança e Estratégia de Serviços
-Digitais em Plataforma"). O trabalho é levá-lo para `Recording.title` e para a lista.
-
-Pontos que decidem o desenho:
-
-- **Não esperar o resumo.** O resumo é sob demanda e custa minutos; o título precisa estar
-  lá assim que a transcrição termina. Uma chamada curta e barata só para o título, logo
-  depois de transcrever, resolve — e quando o resumo completo chegar, ele substitui.
-- **Nunca sobrescrever um título que o usuário digitou.** Precisa de um campo em
-  `metadata.json` dizendo a origem (gerado × manual), no mesmo espírito de
-  `speakerNames`: o palpite da IA cede sempre para a escolha da pessoa.
-- **Sem motor de IA disponível, cair no formato atual** — data e hora. Um app que mostra
-  gravações sem nome porque o Ollama não estava rodando é pior que um app sem a feature.
-- Renomear pela lista (duplo clique) deve continuar possível.
-
 ### Fase 6 — Mapa mental gráfico, editável e exportável
 
 Hoje o mapa mental é uma árvore de leitura com trilhos verticais: correta, mas estática. O
@@ -359,6 +396,8 @@ Capita --smoke-record 8              # grava e valida as duas trilhas
 Capita --smoke-transcribe [id]       # transcreve; sem id usa a mais recente
 Capita --smoke-engines               # detecta e testa o motor de IA
 Capita --smoke-summarize [id]        # mostra a ata salva; --force regera
+Capita --smoke-title [id]            # gera e salva o título de uma gravação transcrita
+Capita --smoke-transcribe [id] --title   # transcreve e nomeia: a corrente inteira
 Capita --smoke-export [id]           # mixa e exporta tudo para /tmp, com conferência
 Capita --open-library                # abre a biblioteca direto
 log stream --predicate 'subsystem == "com.ilansalviano.capita"'

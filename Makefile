@@ -1,5 +1,5 @@
 .PHONY: help build app dmg install run stop spike-tap smoke-record smoke-export \
-        smoke-summarize icon signing-cert clean check
+        smoke-summarize smoke-title icon signing-cert clean check
 
 APP      := build/Capita.app
 INSTALLED := $(HOME)/Applications/Capita.app
@@ -11,6 +11,7 @@ help:
 	@echo "  make smoke-record  Grava 8s de verdade e confere as duas trilhas"
 	@echo "  make smoke-export  Mixa e exporta a gravação mais recente para /tmp"
 	@echo "  make smoke-summarize  Mostra a ata da gravação mais recente"
+	@echo "  make smoke-title   Dá nome à gravação mais recente já transcrita"
 	@echo "  make app           Compila e monta Capita.app"
 	@echo "  make install       Instala em ~/Applications (sem admin)"
 	@echo "  make run           Instala e abre"
@@ -39,6 +40,11 @@ smoke-record: install
 smoke-export: install
 	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
 	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-export
+
+# Gera o título de uma gravação já transcrita (ARGS=<prefixo-do-id>) e o salva.
+smoke-title: install
+	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
+	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-title $(ARGS)
 
 # Sem --force apenas mostra a ata salva: resumir custa minutos e, no Claude Code, dinheiro.
 smoke-summarize: install

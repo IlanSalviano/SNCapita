@@ -87,11 +87,34 @@ final class SummaryService {
         try? FileManager.default.removeItem(at: Self.url(for: id))
     }
 
+    /// Avisa que o título da gravação mudou, para a lista se redesenhar.
+    var onTitleChanged: ((UUID) -> Void)?
+
     func store(_ summary: MeetingSummary, for id: UUID) throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try encoder.encode(summary).write(to: Self.url(for: id), options: .atomic)
+
+        applyTitle(from: summary, to: id)
+    }
+
+    /// O título do resumo substitui o da chamada curta feita ao fim da transcrição: este
+    /// leu a reunião inteira, aquele viu só o começo. Fica aqui, e não em quem chama, para
+    /// que todo caminho que salva um resumo — inclusive os smoke tests — renomeie junto.
+    ///
+    /// `updateTitle` recusa sozinho quando o usuário já digitou um título.
+    private func applyTitle(from summary: MeetingSummary, to id: UUID) {
+        // Um resumo sem título cai no `displayTitle` lá no `Summarizer` — que pode ser a
+        // própria data. Gravar isso como título gerado congelaria a data num campo que
+        // deveria continuar sendo calculado.
+        guard let recording = RecordingStore.shared.load(id),
+              summary.title != Recording.timestampTitle(recording.startedAt),
+              RecordingStore.shared.updateTitle(
+                summary.title, source: .generated, for: id) != nil
+        else { return }
+
+        onTitleChanged?(id)
     }
 
     private static func url(for id: UUID) -> URL {

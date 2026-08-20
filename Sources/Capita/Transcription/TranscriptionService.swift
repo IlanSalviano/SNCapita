@@ -17,6 +17,11 @@ final class TranscriptionService {
     private var queue: [UUID] = []
     private var isWorking = false
 
+    /// Chamado quando um transcript acaba de ser salvo. É por aqui que a gravação ganha
+    /// título: o `AppState` escuta e pede um à IA. Fica como callback, e não como uma
+    /// dependência do serviço, porque transcrever não deve depender de haver motor de IA.
+    var onTranscribed: ((UUID, Transcript) -> Void)?
+
     func transcript(for id: UUID) -> Transcript? {
         let url = Self.transcriptURL(for: id)
         guard let data = try? Data(contentsOf: url) else { return nil }
@@ -154,6 +159,8 @@ final class TranscriptionService {
         Diagnostics.log(
             "transcrição pronta (\(id)): \(final.segments.count) segmentos, "
             + "idioma \(final.language), \(String(format: "%.1f", Date().timeIntervalSince(started)))s")
+
+        onTranscribed?(id, final)
     }
 
     private func save(_ transcript: Transcript, for id: UUID) throws {

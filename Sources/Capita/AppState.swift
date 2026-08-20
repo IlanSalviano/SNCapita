@@ -32,6 +32,13 @@ final class AppState {
 
     init() {
         recordings = RecordingStore.shared.loadAll()
+
+        transcription.onTranscribed = { [weak self] id, transcript in
+            self?.nameRecording(id, from: transcript)
+        }
+        summaries.onTitleChanged = { [weak self] _ in
+            self?.refreshRecordings()
+        }
     }
 
     // MARK: - Gravação
@@ -97,6 +104,46 @@ final class AppState {
     func addHighlight() {
         // Fase 6: grava o timestamp junto à sessão. O botão já existe no painel para
         // que o layout final seja validado desde agora.
+    }
+
+    // MARK: - Título da gravação
+
+    /// Gravações esperando um título da IA. A lista mostra o estado em vez de deixar a
+    /// linha parada na data enquanto o motor pensa.
+    private(set) var namingRecordingIDs: Set<UUID> = []
+
+    /// Pede um título à IA assim que a transcrição fica pronta.
+    ///
+    /// Falhar aqui é aceitável e silencioso na interface: sem motor de IA disponível — o
+    /// Ollama fechado, o Claude Code não instalado — a gravação continua com data e hora,
+    /// que é o comportamento de antes. Um app que mostra gravações sem nome porque o
+    /// Ollama não estava rodando seria pior que um app sem esta fase.
+    private func nameRecording(_ id: UUID, from transcript: Transcript) {
+        guard !SmokeTest.suppressesAutoTitle else { return }
+
+        // Um título digitado pela pessoa não é palpite de IA nenhum. E se o resumo
+        // completo já rodou, o título dele é melhor que o desta chamada curta.
+        guard RecordingStore.shared.load(id)?.titleSource == .timestamp else { return }
+
+        namingRecordingIDs.insert(id)
+        Task {
+            defer { namingRecordingIDs.remove(id) }
+            do {
+                let title = try await RecordingTitler.suggestTitle(
+                    for: transcript, engine: intelligence)
+                applyTitle(title, source: .generated, to: id)
+                Diagnostics.log("título gerado (\(id)): \(title)")
+            } catch {
+                Diagnostics.log("título não gerado (\(id)): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Renomeia uma gravação. Vazio devolve a linha para data e hora.
+    func applyTitle(_ title: String, source: Recording.TitleSource, to id: UUID) {
+        guard RecordingStore.shared.updateTitle(title, source: source, for: id) != nil
+        else { return }
+        refreshRecordings()
     }
 
     // MARK: - Medidor de nível

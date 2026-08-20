@@ -63,7 +63,7 @@ enum Summarizer {
         // O modelo às vezes devolve um título vazio ou o literal "Reunião". O nome do
         // arquivo é pior que um título gerado, mas melhor que nada na barra da janela.
         if summary.title.trimmingCharacters(in: .whitespaces).isEmpty {
-            summary.title = recording.title
+            summary.title = recording.displayTitle
         }
         return summary
     }
@@ -383,7 +383,7 @@ enum Summarizer {
     ///
     /// O Whisper devolve o código ISO, e "responda em pt" funciona pior que "responda em
     /// português do Brasil" — modelos menores tratam o código como ruído.
-    private static func languageName(for code: String) -> String {
+    static func languageName(for code: String) -> String {
         switch code.lowercased().prefix(2) {
         case "pt": return "português do Brasil"
         case "en": return "inglês"

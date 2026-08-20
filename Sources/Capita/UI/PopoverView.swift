@@ -137,7 +137,7 @@ struct PopoverView: View {
             Image(systemName: "waveform")
                 .font(.system(size: 11))
                 .foregroundStyle(Design.Palette.secondaryLabel)
-            Text(recording.title)
+            Text(recording.displayTitle)
                 .font(Design.Typography.body)
                 .foregroundStyle(Design.Palette.label)
                 .lineLimit(1)
