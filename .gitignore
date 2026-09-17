@@ -3,9 +3,15 @@
 build/
 vendor/
 
-# Modelo de transcrição: ~514MB, baixado pelo scripts/fetch-model.sh.
-# Vai dentro do .app na distribuição, mas não no repositório.
-Resources/Models/
+# Modelos de transcrição (whisper): ~540MB+ cada, baixados pelo scripts/fetch-model.sh.
+# Vão dentro do .app na distribuição, mas não no repositório.
+Resources/Models/ggml-medium-q5_0.bin
+Resources/Models/ggml-large-v3-turbo-q5_0.bin
+
+# O modelo de VAD (885KB) e os modelos de diarização da FluidAudio (~21MB) ficam no
+# repositório: são pequenos e não têm script de download. Sem eles no bundle, o app
+# ainda funciona, mas transcreve sem VAD (inventa texto no silêncio) ou sem diarização
+# (sem rótulo de participante) — degradação silenciosa que ninguém percebe até comparar.
 
 # macOS
 .DS_Store
