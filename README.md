@@ -8,6 +8,37 @@ no app.
 
 ---
 
+## Instalação rápida
+
+Ainda não há um `.dmg` pronto pra distribuir — você compila o app localmente a partir do
+código (leva uns minutos, só na primeira vez).
+
+**Requisitos**
+- Mac com Apple Silicon (M1 ou mais recente)
+- macOS 15 (Sequoia) ou mais novo
+- Xcode Command Line Tools: `xcode-select --install`
+- `cmake`: `brew install cmake` (instale o [Homebrew](https://brew.sh) antes, se não tiver)
+
+```bash
+git clone https://github.com/IlanSalviano/SNCapita.git
+cd SNCapita
+
+./scripts/build-whisper.sh    # compila o motor de transcrição (só uma vez)
+./scripts/fetch-model.sh      # baixa o modelo de IA (~530MB, só uma vez)
+make signing-cert             # cria um certificado local (evita repetir permissões a cada build)
+make run                      # compila e abre o app
+```
+
+O Capita aparece na **barra de menus** (não no Dock, ícone perto do relógio). Dali dá pra
+gravar qualquer chamada (Teams, Zoom, Meet, o que estiver tocando som) sem entrar como bot
+na reunião.
+
+**Resumos automáticos por IA** (ata da reunião, mapa mental) usam, nessa ordem, o que
+encontrarem instalado: Claude Code CLI, Ollama, ou LM Studio. Sem nenhum deles, a gravação
+e a transcrição continuam funcionando normalmente — só o resumo automático fica indisponível.
+
+---
+
 ## Restrições que moldaram o projeto
 
 Não é um clone genérico do Plaud Desktop; três restrições ditaram quase toda a arquitetura:
@@ -37,14 +68,7 @@ navegador emite áudio como Chrome, e filtrar por aplicativo perderia a reunião
 
 ## Como rodar
 
-```bash
-./scripts/build-whisper.sh    # uma vez: compila o whisper.cpp (precisa de cmake)
-./scripts/fetch-model.sh      # uma vez: baixa o modelo de transcrição (~530MB)
-make signing-cert             # uma vez: certificado estável (evita re-pedir permissões)
-make run                      # compila, instala em ~/Applications e abre
-```
-
-O app aparece na **barra de menus**, não no Dock.
+Instalação e primeiro build: veja "Instalação rápida" no topo deste README.
 
 ### Comandos
 
