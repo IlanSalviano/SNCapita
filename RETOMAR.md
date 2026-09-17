@@ -471,11 +471,62 @@ instrução na tela.
 
 ---
 
+## Detecção de reunião — feita em 17/09/2026
+
+O app percebe quando uma reunião começa, pergunta se você quer gravar e, no fim dela,
+lembra de parar. Validado numa reunião real de 55 minutos.
+
+**O sinal é o microfone, não a lista de apps abertos.** O Teams fica aberto o dia inteiro
+e o navegador também; o que só acontece numa chamada é um desses apps *abrir a entrada de
+áudio*. O CoreAudio entrega isso de graça, pelo mesmo caminho do process tap:
+`kAudioHardwarePropertyProcessObjectList` dá os processos que usam áudio, e
+`kAudioProcessPropertyIsRunningInput` diz quais estão escutando.
+
+⚠ **Nenhuma permissão nova.** Ler essas propriedades não dispara TCC — o pedido só
+aparece quando um tap é criado, o que acontece na gravação. Foi o que o `MeetSpike`
+provou antes de qualquer linha do app ser escrita (`swift build --product MeetSpike`).
+
+⚠ **O Capita precisa se excluir da própria detecção.** Ele abre o microfone para gravar;
+sem a exclusão, cada gravação dispararia um aviso de "reunião nova".
+
+⚠ **Navegador não diz qual aba.** O Meet não tem app próprio, e descobrir a aba exigiria
+a permissão de Acessibilidade — cara demais para trocar "Chrome" por "Meet" no texto do
+aviso. O aviso diz o que se sabe: qual app abriu o microfone.
+
+**Os dois limiares, e por que são diferentes:**
+
+| Limiar | Valor | Razão |
+|---|---|---|
+| Início | 10s de microfone aberto | O Zoom abre a entrada na tela de teste de áudio, antes de a pessoa entrar. Avisar ali é avisar de uma reunião que não existe. |
+| Fim | 15s sem áudio nenhum | Ver abaixo. |
+
+⚠ **O limiar de fim começou em 45s e estava errado.** O medo era encerrar uma reunião que
+só tivesse ficado quieta. A reunião de 55 minutos mostrou que o medo era infundado: o app
+manteve entrada e saída abertas do começo ao fim, sem um único intervalo de silêncio —
+porque o CoreAudio reporta o *stream aberto*, não o som passando por ele. Uma chamada em
+curso nunca fica quieta nesse sentido, nem com todo mundo mudo.
+
+Os 45s custaram caro do outro lado: quem sai de uma chamada olha a tela por alguns
+segundos e vai fazer outra coisa. Na prática o lembrete chegava **depois** de a pessoa já
+ter parado a gravação na mão — e o lembrete é suprimido quando não há gravação em curso,
+então ele simplesmente nunca aparecia. 15s ainda absorvem uma troca de fone.
+
+O fim exige **as duas** pontas caladas, entrada e saída, e não só o microfone: mutar fecha
+a entrada em alguns apps, e a saída continua aberta enquanto alguém fala.
+
+**Diagnóstico**: `make smoke-meetings` narra ao vivo quem está usando o áudio e quando a
+reunião é dada por começada e por encerrada. É o único teste honesto desta função — ela
+depende de um app de reunião real abrindo o microfone, e uma simulação a validaria de
+mentira. `--notify` junto dispara o aviso na hora, para conferir a notificação e os
+botões sem esperar uma chamada.
+
+---
+
 ## Próximas fases
 
 - **Ask AI (RAG)**: busca semântica com citações que saltam para o timestamp. Direção
   pesquisada: llama.cpp compartilhando o mesmo checkout do ggml + `embeddinggemma-300m`.
-- **Detecção de reunião, notas, screenshots durante a call.**
+- **Notas e screenshots durante a call.** (A detecção de reunião já saiu.)
 - **Busca global e atalhos.** (A exportação já saiu, junto com a Fase 4.)
 
 Plano completo em `~/.claude/plans/indexed-puzzling-kahan.md`.
@@ -488,6 +539,7 @@ Plano completo em `~/.claude/plans/indexed-puzzling-kahan.md`.
 Capita --smoke-record 8              # grava e valida as duas trilhas
 Capita --smoke-transcribe [id]       # transcreve; sem id usa a mais recente
 Capita --smoke-engines               # detecta e testa o motor de IA
+Capita --smoke-meetings [--notify]   # narra a detecção de reunião ao vivo
 Capita --smoke-summarize [id]        # mostra a ata salva; --force regera
 Capita --smoke-title [id]            # gera e salva o título de uma gravação transcrita
 Capita --smoke-mindmap [id]          # geometria, edição, fusão e imagem do mapa mental

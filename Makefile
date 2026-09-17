@@ -1,5 +1,5 @@
 .PHONY: help build app dmg notarize install run stop spike-tap smoke-record smoke-export \
-        smoke-summarize smoke-title smoke-mindmap icon signing-cert clean check
+        smoke-summarize smoke-title smoke-mindmap smoke-meetings icon signing-cert clean check
 
 APP      := build/Capita.app
 INSTALLED := $(HOME)/Applications/Capita.app
@@ -13,6 +13,7 @@ help:
 	@echo "  make smoke-summarize  Mostra a ata da gravação mais recente"
 	@echo "  make smoke-title   Dá nome à gravação mais recente já transcrita"
 	@echo "  make smoke-mindmap Confere o mapa mental e exporta a imagem"
+	@echo "  make smoke-meetings  Narra a detecção de reunião ao vivo"
 	@echo "  make app           Compila e monta Capita.app"
 	@echo "  make install       Instala em ~/Applications (sem admin)"
 	@echo "  make run           Instala e abre"
@@ -57,6 +58,12 @@ smoke-mindmap: install
 smoke-summarize: install
 	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
 	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-summarize $(ARGS)
+
+# Narra a detecção de reunião ao vivo. Abra uma chamada de verdade enquanto roda: é a
+# única condição que prova esta função, e nenhuma simulação a substitui.
+smoke-meetings: install
+	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
+	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-meetings
 
 icon:
 	@swift scripts/make-icon.swift Resources/AppIcon.icns

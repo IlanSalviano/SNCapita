@@ -362,6 +362,89 @@ enum SmokeTest {
         NSApp.terminate(nil)
     }
 
+    /// `Capita --smoke-meetings` narra a detecção de reunião ao vivo.
+    ///
+    /// É o único teste honesto desta função. Ela depende de um app de reunião real
+    /// abrindo o microfone — condição que nenhum teste automatizado produz, e que uma
+    /// simulação validaria de mentira. Aqui a pessoa abre uma chamada de verdade e vê,
+    /// linha a linha, o que o app está vendo: quem usa o áudio, quando a reunião é dada
+    /// por começada e quando por encerrada.
+    static var wantsMeetings: Bool {
+        CommandLine.arguments.contains("--smoke-meetings")
+    }
+
+    static func runMeetings(state: AppState) {
+        // Este teste roda até ser interrompido, e um stdout redirecionado para arquivo só
+        // descarregaria na saída — ou seja, nunca. Tudo que ele narra se perderia.
+        setvbuf(stdout, nil, _IONBF, 0)
+
+        Task { @MainActor in
+            print("▸ Detecção de reunião\n")
+
+            // O banner vem antes do await: na primeira execução o macOS mostra o diálogo
+            // de permissão de notificações e `prepare()` só volta quando alguém responde.
+            // Imprimir depois deixaria a tela vazia sem explicar o que ela espera.
+            print("  Pedindo autorização de notificações (responda o diálogo, se aparecer)…")
+            await state.meetingNotifier.prepare()
+
+            let authorization: String
+            switch state.meetingNotifier.authorization {
+            case .granted:     authorization = "autorizadas"
+            case .denied:      authorization = "NEGADAS — os avisos não vão aparecer"
+            case .unavailable: authorization = "indisponíveis (rodando fora do .app)"
+            case .unknown:     authorization = "estado desconhecido"
+            }
+            print("  Notificações: \(authorization)")
+            print("  Aviso de início após \(Int(MeetingDetector.startConfirmation))s de"
+                  + " microfone aberto; fim após \(Int(MeetingDetector.endGrace))s sem áudio.\n")
+            // `--notify` dispara o aviso na hora, sem esperar reunião nenhuma. Serve para
+            // conferir a outra metade da função: se a notificação aparece, se os botões
+            // vêm junto e se clicar em "Gravar" realmente começa a gravar. Essa metade
+            // não depende de uma chamada real, e esperar uma para testá-la seria perder
+            // tempo com o que já dá para ver agora.
+            if CommandLine.arguments.contains("--notify") {
+                let app = MeetingApp.match("us.zoom.xos")!
+                print("  Disparando o aviso de início (Zoom, simulado).")
+                print("  Clique em \"\(S.meetingRecord)\" e veja se a gravação começa.\n")
+                state.meetingNotifier.askToRecord(app: app)
+            }
+
+            print("  Abra uma reunião (Teams, Zoom ou Meet). Ctrl-C para sair.\n")
+
+            state.meetings.start()
+            observeMeetings(state: state, lastReport: "")
+        }
+    }
+
+    /// Reimprime só quando algo muda: uma linha a cada 2s por uma hora de reunião seria
+    /// um log que ninguém lê.
+    private static func observeMeetings(state: AppState, lastReport: String) {
+        let active = state.meetings.activeMeeting
+        let users = AudioProcesses.sample()
+            .filter(\.usesAudio)
+            .map { process in
+                let marks = [
+                    process.isRunningInput ? "microfone" : nil,
+                    process.isRunningOutput ? "saída" : nil,
+                ].compactMap { $0 }.joined(separator: "+")
+                return "\(process.bundleID) (\(marks))"
+            }
+            .sorted()
+
+        let report = (active.map { "REUNIÃO: \($0.app.name)" } ?? "sem reunião")
+            + " | " + (users.isEmpty ? "ninguém usando áudio" : users.joined(separator: ", "))
+
+        if report != lastReport {
+            let stamp = DateFormatter.localizedString(
+                from: Date(), dateStyle: .none, timeStyle: .medium)
+            print("  \(stamp)  \(report)")
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            Task { @MainActor in observeMeetings(state: state, lastReport: report) }
+        }
+    }
+
     /// `Capita --smoke-engines` detecta os motores de IA e testa o escolhido.
     static var wantsEngines: Bool {
         CommandLine.arguments.contains("--smoke-engines")

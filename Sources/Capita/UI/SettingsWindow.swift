@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Janela de ajustes. Hoje mostra apenas o motor de IA, que é a única escolha do app com
+/// Janela de ajustes: o motor de IA e a detecção de reunião — as duas escolhas do app com
 /// consequência visível para o usuário.
 @MainActor
 final class SettingsWindowController: NSObject, NSWindowDelegate {
@@ -25,7 +25,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let hosting = NSHostingController(rootView: SettingsView().environment(state))
         let window = NSWindow(contentViewController: hosting)
         window.title = S.settingsTitle
-        window.setContentSize(NSSize(width: 460, height: 320))
+        window.setContentSize(NSSize(width: 460, height: 500))
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -57,6 +57,8 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 16) {
             header
             engineList
+            Divider().overlay(Design.Palette.separator)
+            meetingSection
             Spacer(minLength: 0)
             footer
         }
@@ -128,6 +130,43 @@ struct SettingsView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+    }
+
+    private var meetingSection: some View {
+        @Bindable var meetings = state.meetings
+
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(S.meetingDetection).font(Design.Typography.title)
+
+            Toggle(S.meetingDetectionToggle, isOn: $meetings.isEnabled)
+                .font(Design.Typography.body)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            Text(S.meetingDetectionExplanation)
+                .font(Design.Typography.caption)
+                .foregroundStyle(Design.Palette.secondaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Só aparece quando a opção está ligada e mesmo assim não pode avisar: dizer
+            // isso o tempo todo seria alarme falso, e não dizer nunca deixaria a opção
+            // ligada sem efeito nenhum.
+            if meetings.isEnabled, state.meetingNotifier.authorization == .denied {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Design.Palette.secondaryLabel)
+                    Text(S.meetingNotificationsDenied)
+                        .font(Design.Typography.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(S.openNotificationSettings) {
+                        Permissions.openSettings(for: .notifications)
+                    }
+                    .buttonStyle(.link)
+                    .font(Design.Typography.caption)
+                }
+                .padding(.top, 2)
+            }
+        }
     }
 
     private var footer: some View {

@@ -61,6 +61,17 @@ graça a metade difícil da diarização: o que entrou pelo microfone é você, 
 alto-falantes são os outros. Funciona com fones, porque o tap intercepta o áudio antes do
 dispositivo de saída.
 
+### Detecção de reunião
+
+O Capita avisa quando uma reunião começa e pergunta se você quer gravar; quando ela
+termina, lembra de parar. O sinal é **qual app abriu o microfone** — nada é lido da sua
+tela, e nenhuma permissão nova é pedida.
+
+É o microfone, e não a lista de apps abertos, porque o Teams fica aberto o dia inteiro e o
+navegador também. E é o microfone, e não o áudio em geral, porque um vídeo no YouTube toca
+som sem escutar ninguém: olhar só a saída faria o app perguntar "quer gravar?" a cada
+vídeo assistido.
+
 Capturamos o sistema inteiro, não só o app da reunião: um Teams ou Meet aberto no
 navegador emite áudio como Chrome, e filtrar por aplicativo perderia a reunião inteira.
 
@@ -78,6 +89,7 @@ Instalação e primeiro build: veja "Instalação rápida" no topo deste README.
 | `make dmg` | Gera o `.dmg` distribuível |
 | `make check` | Verifica assinatura, plist e recursos do bundle |
 | `make spike-tap` | Prova que a captura de áudio funciona sem admin |
+| `make smoke-meetings` | Narra a detecção de reunião ao vivo |
 | `make smoke-record` | Grava 8s de verdade e confere as duas trilhas |
 | `make stop` | Encerra o app |
 
@@ -87,6 +99,7 @@ Instalação e primeiro build: veja "Instalação rápida" no topo deste README.
 Capita --smoke-record 8     # grava e valida as trilhas
 Capita --smoke-transcribe   # transcreve a gravação mais recente e imprime
 Capita --smoke-engines      # detecta e testa o motor de IA
+Capita --smoke-meetings     # narra a detecção de reunião ao vivo
 Capita --smoke-summarize    # resume e imprime a ata inteira (--force regera)
 Capita --smoke-export       # mixa, exporta tudo para /tmp e confere
 Capita --open-library       # abre a biblioteca direto

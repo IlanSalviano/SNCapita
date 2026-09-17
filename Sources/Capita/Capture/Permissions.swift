@@ -37,6 +37,7 @@ enum Permissions {
     enum SettingsPane {
         case microphone
         case audioCapture
+        case notifications
 
         var urlString: String {
             switch self {
@@ -44,6 +45,8 @@ enum Permissions {
                 return "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
             case .audioCapture:
                 return "x-apple.systempreferences:com.apple.preference.security?Privacy_AudioCapture"
+            case .notifications:
+                return "x-apple.systempreferences:com.apple.preference.notifications"
             }
         }
     }

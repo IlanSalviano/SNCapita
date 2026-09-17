@@ -39,6 +39,7 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("SwiftUI"),
+                .linkedFramework("UserNotifications"),
                 .linkedFramework("CoreAudio"),
                 .linkedFramework("AudioToolbox"),
                 .linkedFramework("AVFoundation"),
@@ -70,6 +71,17 @@ let package = Package(
         .executableTarget(
             name: "TapSpike",
             path: "Sources/TapSpike",
+            linkerSettings: [
+                .linkedFramework("CoreAudio"),
+                .linkedFramework("AudioToolbox"),
+            ]
+        ),
+
+        // Spike de validação da detecção de reunião: mostra quais processos estão com o
+        // microfone aberto, que é o sinal capaz de distinguir uma reunião de um vídeo.
+        .executableTarget(
+            name: "MeetSpike",
+            path: "Sources/MeetSpike",
             linkerSettings: [
                 .linkedFramework("CoreAudio"),
                 .linkedFramework("AudioToolbox"),

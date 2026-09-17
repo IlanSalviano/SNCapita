@@ -103,3 +103,18 @@
 "mindmap.delete_branch_question" = "Delete \u201c%@\u201d and everything under it?";
 "mindmap.grafted" = "%d branch(es) brought from the summary";
 "export.mind_map" = "Mind map (.png)\u2026";
+
+/* Meeting detection */
+"meeting.started_title" = "A meeting started";
+"meeting.started_body" = "%@ opened the microphone. Record this meeting?";
+"meeting.ended_title" = "The meeting ended";
+"meeting.ended_body" = "The %@ call is over and Capita is still recording.";
+"meeting.record" = "Record";
+"meeting.not_now" = "Not now";
+"meeting.stop" = "Stop and transcribe";
+"meeting.keep" = "Keep recording";
+"meeting.detection" = "Meeting detection";
+"meeting.detection_explanation" = "Capita notices when a meeting app opens the microphone and asks whether you want to record. When the call ends, it reminds you to stop. Nothing is read from your screen: the only signal is which app is using audio.";
+"meeting.detection_toggle" = "Tell me when a meeting starts";
+"meeting.notifications_denied" = "Capita's notifications are turned off — without them there is no way to tell you.";
+"meeting.open_notification_settings" = "Open System Settings";

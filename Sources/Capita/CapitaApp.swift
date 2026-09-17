@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             state.transcription.resumePending()
             // Atas escritas antes da Fase 5 têm um título bom que nunca chegou à lista.
             state.summaries.adoptTitlesFromSavedSummaries()
+            Task { await state.startWatchingMeetings() }
         }
 
         if let seconds = SmokeTest.requestedDuration {
@@ -65,6 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SmokeTest.runTitle(state: state)
         } else if SmokeTest.wantsEngines {
             SmokeTest.runEngines()
+        } else if SmokeTest.wantsMeetings {
+            SmokeTest.runMeetings(state: state)
         } else if SmokeTest.wantsExport {
             SmokeTest.runExport(state: state)
         } else if SmokeTest.wantsSummarize {

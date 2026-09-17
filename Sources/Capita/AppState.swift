@@ -21,6 +21,8 @@ final class AppState {
     let export = ExportService()
     let summaries = SummaryService()
     let mindMaps = MindMapService()
+    let meetings = MeetingDetector()
+    let meetingNotifier = MeetingNotifier()
 
     /// Notifica a barra de menus para atualizar o ícone. É um callback simples porque o
     /// `MenuBarController` é AppKit e vive fora da árvore SwiftUI.
@@ -40,6 +42,44 @@ final class AppState {
         summaries.onTitleChanged = { [weak self] _ in
             self?.refreshRecordings()
         }
+
+        meetings.onStarted = { [weak self] meeting in
+            self?.meetingStarted(meeting)
+        }
+        meetings.onEnded = { [weak self] meeting in
+            self?.meetingEnded(meeting)
+        }
+        meetingNotifier.onRecordRequested = { [weak self] in
+            guard let self, !self.isRecording else { return }
+            self.toggleRecording()
+        }
+        meetingNotifier.onStopRequested = { [weak self] in
+            guard let self, self.isRecording else { return }
+            self.toggleRecording()
+        }
+    }
+
+    // MARK: - Reuniões
+
+    /// Começa a observar reuniões. Fora do `init` porque pede autorização de notificação
+    /// ao sistema, e um objeto sendo construído não é hora de abrir diálogo com ninguém.
+    func startWatchingMeetings() async {
+        await meetingNotifier.prepare()
+        meetings.start()
+    }
+
+    private func meetingStarted(_ meeting: MeetingDetector.Meeting) {
+        // Já gravando: não há o que perguntar. Vale tanto para quem apertou o botão antes
+        // da chamada quanto para quem está gravando outra coisa.
+        guard !isRecording else { return }
+        meetingNotifier.askToRecord(app: meeting.app)
+    }
+
+    private func meetingEnded(_ meeting: MeetingDetector.Meeting) {
+        // Um convite para gravar perde a validade junto com a reunião que o motivou.
+        meetingNotifier.withdrawPending()
+        guard isRecording else { return }
+        meetingNotifier.remindToStop(app: meeting.app)
     }
 
     // MARK: - Gravação
@@ -71,6 +111,9 @@ final class AppState {
             isRecording = true
             onRecordingChanged?(true)
             startLevelUpdates()
+            // A gravação começou — por este caminho ou pelo aviso. De qualquer modo, a
+            // pergunta na tela já foi respondida pelos fatos.
+            meetingNotifier.withdrawPending()
         } catch {
             report(error)
         }

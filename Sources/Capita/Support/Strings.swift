@@ -120,6 +120,27 @@ enum S {
     static var revealInFinder: String { t("export.reveal") }
     static var revealLastExport: String { t("export.reveal_last") }
 
+    // Detecção de reunião
+    static var meetingStartedTitle: String { t("meeting.started_title") }
+    static var meetingEndedTitle: String { t("meeting.ended_title") }
+    static var meetingRecord: String { t("meeting.record") }
+    static var meetingNotNow: String { t("meeting.not_now") }
+    static var meetingStopAndTranscribe: String { t("meeting.stop") }
+    static var meetingKeepRecording: String { t("meeting.keep") }
+    static var meetingDetection: String { t("meeting.detection") }
+    static var meetingDetectionExplanation: String { t("meeting.detection_explanation") }
+    static var meetingDetectionToggle: String { t("meeting.detection_toggle") }
+    static var meetingNotificationsDenied: String { t("meeting.notifications_denied") }
+    static var openNotificationSettings: String { t("meeting.open_notification_settings") }
+
+    static func meetingStartedBody(_ app: String) -> String {
+        String(format: t("meeting.started_body"), app)
+    }
+
+    static func meetingEndedBody(_ app: String) -> String {
+        String(format: t("meeting.ended_body"), app)
+    }
+
     // Motor de IA e ajustes
     static var noEngineAvailable: String { t("engine.none") }
     static var settingsTitle: String { t("settings.title") }
