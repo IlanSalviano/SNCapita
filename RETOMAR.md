@@ -514,11 +514,29 @@ então ele simplesmente nunca aparecia. 15s ainda absorvem uma troca de fone.
 O fim exige **as duas** pontas caladas, entrada e saída, e não só o microfone: mutar fecha
 a entrada em alguns apps, e a saída continua aberta enquanto alguém fala.
 
+⚠ **O aviso não pode ser só notificação.** Em 18/09 o lembrete de parar foi entregue
+mas caiu direto no resumo da Central de Notificações, sem banner — ninguém viu. O
+remédio de manual, `interruptionLevel = .timeSensitive`, exige o entitlement
+`com.apple.developer.usernotifications.time-sensitive`, e ele só vale com perfil de
+provisionamento: assinado só com Developer ID, o sistema mata o app na abertura
+(SIGKILL, testado numa cópia). Por isso os avisos também aparecem num painel flutuante
+(`MeetingPromptPanel`), com as regras da cápsula de gravação — não ativa o app, não
+rouba foco, fica até ser respondido. A notificação continua, pelo som.
+
+⚠ **Reuniões seguidas no Teams viram uma só.** O `com.microsoft.teams2.modulehost`
+manteve microfone e saída abertos de uma chamada para a próxima, o detector ficou preso
+na primeira, e a segunda nunca foi anunciada. Não há sinal no CoreAudio para isso; o
+remédio é tratar "parar a gravação na mão" como fim da reunião
+(`MeetingDetector.forgetActiveMeeting`). Se o microfone seguir aberto, ele pergunta de
+novo em 10s. Ao sair da última chamada o Teams soltou tudo em ~10s (12:27:50 entrada,
+12:28:00 saída), e aí o fim é detectado normalmente.
+
 **Diagnóstico**: `make smoke-meetings` narra ao vivo quem está usando o áudio e quando a
 reunião é dada por começada e por encerrada. É o único teste honesto desta função — ela
 depende de um app de reunião real abrindo o microfone, e uma simulação a validaria de
-mentira. `--notify` junto dispara o aviso na hora, para conferir a notificação e os
-botões sem esperar uma chamada.
+mentira. `--notify` junto dispara o aviso de início na hora, e `--notify-stop` o
+lembrete de parar, para conferir o painel, a notificação e os botões sem esperar uma
+chamada.
 
 ---
 
@@ -539,7 +557,7 @@ Plano completo em `~/.claude/plans/indexed-puzzling-kahan.md`.
 Capita --smoke-record 8              # grava e valida as duas trilhas
 Capita --smoke-transcribe [id]       # transcreve; sem id usa a mais recente
 Capita --smoke-engines               # detecta e testa o motor de IA
-Capita --smoke-meetings [--notify]   # narra a detecção de reunião ao vivo
+Capita --smoke-meetings [--notify|--notify-stop]  # narra a detecção de reunião ao vivo
 Capita --smoke-summarize [id]        # mostra a ata salva; --force regera
 Capita --smoke-title [id]            # gera e salva o título de uma gravação transcrita
 Capita --smoke-mindmap [id]          # geometria, edição, fusão e imagem do mapa mental

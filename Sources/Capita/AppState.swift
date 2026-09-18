@@ -28,6 +28,17 @@ final class AppState {
     /// `MenuBarController` é AppKit e vive fora da árvore SwiftUI.
     var onRecordingChanged: ((Bool) -> Void)?
 
+    /// Um aviso de reunião à espera de resposta.
+    enum MeetingPrompt: Equatable {
+        case askToRecord(MeetingApp)
+        case remindToStop(MeetingApp)
+    }
+
+    /// Mostra (ou, com `nil`, recolhe) o painel do aviso. Callback pelo mesmo motivo do
+    /// `onRecordingChanged`: o painel é AppKit.
+    var onMeetingPrompt: ((MeetingPrompt?) -> Void)?
+    private var meetingPrompt: MeetingPrompt?
+
     // MARK: - Privado
 
     private var session: RecordingSession?
@@ -50,12 +61,10 @@ final class AppState {
             self?.meetingEnded(meeting)
         }
         meetingNotifier.onRecordRequested = { [weak self] in
-            guard let self, !self.isRecording else { return }
-            self.toggleRecording()
+            self?.acceptMeetingPrompt(.askToRecord)
         }
         meetingNotifier.onStopRequested = { [weak self] in
-            guard let self, self.isRecording else { return }
-            self.toggleRecording()
+            self?.acceptMeetingPrompt(.remindToStop)
         }
     }
 
@@ -72,14 +81,59 @@ final class AppState {
         // Já gravando: não há o que perguntar. Vale tanto para quem apertou o botão antes
         // da chamada quanto para quem está gravando outra coisa.
         guard !isRecording else { return }
-        meetingNotifier.askToRecord(app: meeting.app)
+        presentMeetingPrompt(.askToRecord(meeting.app))
     }
 
     private func meetingEnded(_ meeting: MeetingDetector.Meeting) {
         // Um convite para gravar perde a validade junto com a reunião que o motivou.
-        meetingNotifier.withdrawPending()
+        withdrawMeetingPrompt()
         guard isRecording else { return }
-        meetingNotifier.remindToStop(app: meeting.app)
+        presentMeetingPrompt(.remindToStop(meeting.app))
+    }
+
+    /// O botão principal do aviso — no painel ou na notificação, tanto faz.
+    func acceptMeetingPrompt() {
+        switch meetingPrompt {
+        case .askToRecord: acceptMeetingPrompt(.askToRecord)
+        case .remindToStop: acceptMeetingPrompt(.remindToStop)
+        case nil: break
+        }
+    }
+
+    private enum PromptKind { case askToRecord, remindToStop }
+
+    /// A ação vem do tipo de aviso, e não de alternar a gravação: um clique atrasado numa
+    /// notificação antiga não pode parar uma gravação que ela não mandou parar.
+    private func acceptMeetingPrompt(_ kind: PromptKind) {
+        withdrawMeetingPrompt()
+        switch kind {
+        case .askToRecord where !isRecording: toggleRecording()
+        case .remindToStop where isRecording: toggleRecording()
+        default: break
+        }
+    }
+
+    /// "Agora não" ou "Continuar gravando": só recolhe o aviso.
+    func dismissMeetingPrompt() {
+        withdrawMeetingPrompt()
+    }
+
+    /// Os dois canais juntos: o painel fica até ser respondido, e a notificação traz o
+    /// som — e o registro na Central, para quem estava longe da tela.
+    func presentMeetingPrompt(_ prompt: MeetingPrompt) {
+        meetingPrompt = prompt
+        onMeetingPrompt?(prompt)
+        switch prompt {
+        case .askToRecord(let app): meetingNotifier.askToRecord(app: app)
+        case .remindToStop(let app): meetingNotifier.remindToStop(app: app)
+        }
+    }
+
+    private func withdrawMeetingPrompt() {
+        meetingNotifier.withdrawPending()
+        guard meetingPrompt != nil else { return }
+        meetingPrompt = nil
+        onMeetingPrompt?(nil)
     }
 
     // MARK: - Gravação
@@ -113,7 +167,7 @@ final class AppState {
             startLevelUpdates()
             // A gravação começou — por este caminho ou pelo aviso. De qualquer modo, a
             // pergunta na tela já foi respondida pelos fatos.
-            meetingNotifier.withdrawPending()
+            withdrawMeetingPrompt()
         } catch {
             report(error)
         }
@@ -127,6 +181,14 @@ final class AppState {
             isRecording = false
             currentLevel = 0
             onRecordingChanged?(false)
+            // Parou por qualquer caminho: um "a reunião acabou, pare" na tela já não
+            // tem o que pedir.
+            withdrawMeetingPrompt()
+            // Quem para na mão durante uma reunião deu a reunião por encerrada. O
+            // detector precisa saber disso, porque às vezes o microfone não fecha: numa
+            // sequência de chamadas no Teams ele ficou aberto de uma para a outra, a
+            // primeira nunca "acabou" e a segunda nunca foi anunciada.
+            meetings.forgetActiveMeeting()
             recordings = RecordingStore.shared.loadAll()
             // Abre a seção de recentes: acabar de gravar e não ver a gravação em lugar
             // nenhum dá a impressão de que ela se perdeu.

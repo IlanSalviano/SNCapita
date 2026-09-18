@@ -117,6 +117,20 @@ final class MeetingDetector {
         quietSince = nil
     }
 
+    /// Dá a reunião corrente por encerrada sem avisar ninguém — quem chama já sabe.
+    ///
+    /// Existe porque o microfone nem sempre fecha entre uma chamada e a próxima: o Teams
+    /// manteve a entrada aberta de uma reunião para a seguinte, e o detector, preso na
+    /// primeira, nunca anunciou a segunda. Parar a gravação na mão é o sinal que o
+    /// CoreAudio não dá. Se o microfone continuar aberto, a observação recomeça do zero
+    /// e, passados os 10s de confirmação, pergunta de novo se é para gravar.
+    func forgetActiveMeeting() {
+        guard activeMeeting != nil else { return }
+        activeMeeting = nil
+        candidateSince.removeAll()
+        quietSince = nil
+    }
+
     // MARK: - Ciclo de observação
 
     private func poll() {

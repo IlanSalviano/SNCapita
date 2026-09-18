@@ -22,6 +22,7 @@ struct CapitaApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
     private var floatingPanel: FloatingRecorderPanel?
+    private var meetingPrompt: MeetingPromptPanel?
     private var library: LibraryWindowController?
     private var settings: SettingsWindowController?
     private let state = AppState()
@@ -37,6 +38,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         state.onOpenLibrary = { [weak self] in self?.library?.show() }
         state.onOpenSettings = { [weak self] in self?.settings?.show() }
+
+        meetingPrompt = MeetingPromptPanel(state: state)
+        state.onMeetingPrompt = { [weak self] prompt in
+            if let prompt {
+                self?.meetingPrompt?.show(prompt)
+            } else {
+                self?.meetingPrompt?.hide()
+            }
+        }
 
         state.onRecordingChanged = { [weak self] isRecording in
             self?.menuBar?.updateIcon(isRecording: isRecording)

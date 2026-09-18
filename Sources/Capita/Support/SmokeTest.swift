@@ -402,11 +402,16 @@ enum SmokeTest {
             // vêm junto e se clicar em "Gravar" realmente começa a gravar. Essa metade
             // não depende de uma chamada real, e esperar uma para testá-la seria perder
             // tempo com o que já dá para ver agora.
+            let app = MeetingApp.match("us.zoom.xos")!
             if CommandLine.arguments.contains("--notify") {
-                let app = MeetingApp.match("us.zoom.xos")!
                 print("  Disparando o aviso de início (Zoom, simulado).")
                 print("  Clique em \"\(S.meetingRecord)\" e veja se a gravação começa.\n")
-                state.meetingNotifier.askToRecord(app: app)
+                state.presentMeetingPrompt(.askToRecord(app))
+            } else if CommandLine.arguments.contains("--notify-stop") {
+                // Sem gravação em curso, "Parar" só recolhe o aviso — o que interessa
+                // aqui é ver o painel e a notificação, não parar nada.
+                print("  Disparando o lembrete de parar (Zoom, simulado).\n")
+                state.presentMeetingPrompt(.remindToStop(app))
             }
 
             print("  Abra uma reunião (Teams, Zoom ou Meet). Ctrl-C para sair.\n")
