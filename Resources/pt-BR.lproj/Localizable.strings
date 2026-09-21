@@ -116,5 +116,8 @@
 "meeting.detection" = "Detecção de reunião";
 "meeting.detection_explanation" = "O Capita percebe quando um app de reunião abre o microfone e pergunta se você quer gravar. Quando a chamada termina, ele lembra de parar. Nada é lido da sua tela: o sinal é apenas qual app está usando o áudio.";
 "meeting.detection_toggle" = "Avisar quando uma reunião começar";
+"live.title" = "Transcrição ao vivo (experimental)";
+"live.toggle" = "Transcrever os outros participantes durante a gravação";
+"live.explanation" = "Base para a IA ajudar com perguntas no meio da reunião. Usa a GPU durante toda a chamada e cerca de 1 GB de memória a mais. A transcrição completa, feita ao parar, continua sendo a oficial. Vale a partir da próxima gravação.";
 "meeting.notifications_denied" = "As notificações do Capita estão desativadas — sem elas não há como avisar.";
 "meeting.open_notification_settings" = "Abrir Ajustes do Sistema";

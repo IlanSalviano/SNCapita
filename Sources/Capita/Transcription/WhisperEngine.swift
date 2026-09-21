@@ -60,10 +60,24 @@ final class WhisperEngine {
         vadModelURL: URL? = nil,
         progress: (@Sendable (Double) -> Void)? = nil
     ) throws -> [TimedSegment] {
+        try transcribe(
+            samples: try Self.loadSamples(from: audioURL), track: track, language: language,
+            vadModelURL: vadModelURL, progress: progress)
+    }
+
+    /// Transcreve amostras float 16 kHz mono já em memória.
+    ///
+    /// É o caminho da transcrição ao vivo, que lê trechos do WAV ainda sendo gravado. Os
+    /// tempos dos segmentos saem relativos ao início de `samples`.
+    func transcribe(
+        samples: [Float],
+        track: TranscriptSegment.Track,
+        language: String?,
+        vadModelURL: URL? = nil,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) throws -> [TimedSegment] {
 
         guard let context else { throw TranscriptionError.contextUnavailable }
-
-        let samples = try Self.loadSamples(from: audioURL)
         guard !samples.isEmpty else { return [] }
 
         var params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY)

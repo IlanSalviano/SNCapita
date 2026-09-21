@@ -130,6 +130,9 @@ enum S {
     static var meetingDetection: String { t("meeting.detection") }
     static var meetingDetectionExplanation: String { t("meeting.detection_explanation") }
     static var meetingDetectionToggle: String { t("meeting.detection_toggle") }
+    static var liveTitle: String { t("live.title") }
+    static var liveToggle: String { t("live.toggle") }
+    static var liveExplanation: String { t("live.explanation") }
     static var meetingNotificationsDenied: String { t("meeting.notifications_denied") }
     static var openNotificationSettings: String { t("meeting.open_notification_settings") }
 

@@ -1,5 +1,5 @@
-.PHONY: help build app dmg notarize install run stop spike-tap smoke-record smoke-export \
-        smoke-summarize smoke-title smoke-mindmap smoke-meetings icon signing-cert clean check
+.PHONY: help build app dmg notarize install run stop spike-tap spike-live smoke-record smoke-export \
+        smoke-summarize smoke-title smoke-mindmap smoke-meetings smoke-live icon signing-cert clean check
 
 APP      := build/Capita.app
 INSTALLED := $(HOME)/Applications/Capita.app
@@ -8,12 +8,14 @@ help:
 	@echo "Capita — gravador de reuniões para macOS"
 	@echo
 	@echo "  make spike-tap     Prova que a captura de áudio funciona sem admin"
+	@echo "  make spike-live    Cronometra clique → resposta da IA numa gravação real"
 	@echo "  make smoke-record  Grava 8s de verdade e confere as duas trilhas"
 	@echo "  make smoke-export  Mixa e exporta a gravação mais recente para /tmp"
 	@echo "  make smoke-summarize  Mostra a ata da gravação mais recente"
 	@echo "  make smoke-title   Dá nome à gravação mais recente já transcrita"
 	@echo "  make smoke-mindmap Confere o mapa mental e exporta a imagem"
 	@echo "  make smoke-meetings  Narra a detecção de reunião ao vivo"
+	@echo "  make smoke-live    Confere a transcrição ao vivo numa reunião antiga, a 4x"
 	@echo "  make app           Compila e monta Capita.app"
 	@echo "  make install       Instala em ~/Applications (sem admin)"
 	@echo "  make run           Instala e abre"
@@ -32,6 +34,12 @@ build:
 # inteira precisa ser repensada. Toque algum áudio antes de rodar.
 spike-tap: build
 	@./.build/release/TapSpike
+
+# Mede se responder perguntas durante a reunião cabe em tempo real: Whisper em 30s de
+# áudio e o Claude frio contra uma sessão mantida aberta. Só lê uma gravação já transcrita.
+spike-live:
+	@swift build -c release --product LiveSpike
+	@./.build/release/LiveSpike
 
 # Grava de verdade por 8s e confere as duas trilhas. Toque algum áudio enquanto roda.
 smoke-record: install
@@ -64,6 +72,12 @@ smoke-summarize: install
 smoke-meetings: install
 	@pkill -f "Capita.app/Contents/MacOS/Capita" 2>/dev/null || true
 	@"$(INSTALLED)/Contents/MacOS/Capita" --smoke-meetings
+
+# Regrava uma reunião antiga a 4x num arquivo temporário e confere o rascunho ao vivo
+# contra a transcrição final. Roda o bundle de build/, sem instalar e sem derrubar o
+# Capita instalado — que pode estar gravando uma reunião agora.
+smoke-live: app
+	@"$(APP)/Contents/MacOS/Capita" --smoke-live $(ARGS)
 
 icon:
 	@swift scripts/make-icon.swift Resources/AppIcon.icns

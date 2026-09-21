@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Janela de ajustes: o motor de IA e a detecção de reunião — as duas escolhas do app com
-/// consequência visível para o usuário.
+/// Janela de ajustes: o motor de IA, a detecção de reunião e a transcrição ao vivo — as
+/// escolhas do app com consequência visível para o usuário.
 @MainActor
 final class SettingsWindowController: NSObject, NSWindowDelegate {
 
@@ -25,7 +25,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let hosting = NSHostingController(rootView: SettingsView().environment(state))
         let window = NSWindow(contentViewController: hosting)
         window.title = S.settingsTitle
-        window.setContentSize(NSSize(width: 460, height: 500))
+        window.setContentSize(NSSize(width: 460, height: 620))
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -59,6 +59,8 @@ struct SettingsView: View {
             engineList
             Divider().overlay(Design.Palette.separator)
             meetingSection
+            Divider().overlay(Design.Palette.separator)
+            liveSection
             Spacer(minLength: 0)
             footer
         }
@@ -166,6 +168,24 @@ struct SettingsView: View {
                 }
                 .padding(.top, 2)
             }
+        }
+    }
+
+    private var liveSection: some View {
+        @Bindable var live = state.liveTranscription
+
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(S.liveTitle).font(Design.Typography.title)
+
+            Toggle(S.liveToggle, isOn: $live.isEnabled)
+                .font(Design.Typography.body)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            Text(S.liveExplanation)
+                .font(Design.Typography.caption)
+                .foregroundStyle(Design.Palette.secondaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

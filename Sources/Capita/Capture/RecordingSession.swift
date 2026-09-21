@@ -9,7 +9,7 @@ import Foundation
 final class RecordingSession {
 
     private(set) var recording: Recording
-    private let directory: URL
+    let directory: URL
     private let systemRecorder = ProcessTapRecorder()
     private let micRecorder = MicRecorder()
     private var startTime: Date?

@@ -116,5 +116,8 @@
 "meeting.detection" = "Meeting detection";
 "meeting.detection_explanation" = "Capita notices when a meeting app opens the microphone and asks whether you want to record. When the call ends, it reminds you to stop. Nothing is read from your screen: the only signal is which app is using audio.";
 "meeting.detection_toggle" = "Tell me when a meeting starts";
+"live.title" = "Live transcription (experimental)";
+"live.toggle" = "Transcribe the other participants while recording";
+"live.explanation" = "The groundwork for AI help with questions mid-meeting. Uses the GPU for the whole call and about 1 GB of extra memory. The full transcript, made when you stop, remains the official one. Takes effect from the next recording.";
 "meeting.notifications_denied" = "Capita's notifications are turned off — without them there is no way to tell you.";
 "meeting.open_notification_settings" = "Open System Settings";

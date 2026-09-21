@@ -17,6 +17,7 @@ final class AppState {
     var isRecentExpanded = false
 
     let transcription = TranscriptionService()
+    let liveTranscription = LiveTranscriptionService()
     let intelligence = IntelligenceEngine()
     let export = ExportService()
     let summaries = SummaryService()
@@ -165,6 +166,11 @@ final class AppState {
             isRecording = true
             onRecordingChanged?(true)
             startLevelUpdates()
+            // Só depois de a gravação estar de pé: o rascunho ao vivo lê o que ela escreve,
+            // e nada dele pode atrasar ou derrubar a captura.
+            if liveTranscription.isEnabled {
+                liveTranscription.start(directory: session.directory)
+            }
             // A gravação começou — por este caminho ou pelo aviso. De qualquer modo, a
             // pergunta na tela já foi respondida pelos fatos.
             withdrawMeetingPrompt()
@@ -175,6 +181,7 @@ final class AppState {
 
     private func stopRecording() {
         stopLevelUpdates()
+        liveTranscription.stop()
 
         defer {
             session = nil

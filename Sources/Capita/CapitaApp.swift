@@ -82,6 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SmokeTest.runExport(state: state)
         } else if SmokeTest.wantsSummarize {
             SmokeTest.runSummarize(state: state)
+        } else if LiveSmokeTest.isRequested {
+            LiveSmokeTest.run(state: state)
         } else if CommandLine.arguments.contains("--open-library")
                     || Diagnostics.opensSummary {
             // Atalhos de diagnóstico: abrem as janelas sem passar pelo popover.

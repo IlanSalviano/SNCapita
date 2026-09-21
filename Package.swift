@@ -87,5 +87,27 @@ let package = Package(
                 .linkedFramework("AudioToolbox"),
             ]
         ),
+
+        // Spike de validação das respostas ao vivo: cronometra, numa gravação real, o
+        // caminho do clique à primeira palavra da IA — Whisper num trecho de 30s e o
+        // Claude frio contra uma sessão mantida aberta.
+        .executableTarget(
+            name: "LiveSpike",
+            dependencies: ["WhisperC"],
+            path: "Sources/LiveSpike",
+            linkerSettings: [
+                .linkedFramework("AVFoundation"),
+                .linkedFramework("Metal"),
+                .linkedFramework("MetalKit"),
+                .linkedFramework("Accelerate"),
+                .linkedLibrary("c++"),
+                .unsafeFlags([
+                    "-Lvendor/whisper/lib",
+                    "-lwhisper",
+                    "-lggml", "-lggml-base", "-lggml-cpu",
+                    "-lggml-metal", "-lggml-blas",
+                ]),
+            ]
+        ),
     ]
 )
