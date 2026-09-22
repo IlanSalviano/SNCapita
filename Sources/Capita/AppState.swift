@@ -17,7 +17,9 @@ final class AppState {
     var isRecentExpanded = false
 
     let transcription = TranscriptionService()
-    let liveTranscription = LiveTranscriptionService()
+    let liveTranscription: LiveTranscriptionService
+    let assistant: LiveAssistant
+    private let commandTap = CommandDoubleTapDetector()
     let intelligence = IntelligenceEngine()
     let export = ExportService()
     let summaries = SummaryService()
@@ -46,7 +48,14 @@ final class AppState {
     private var levelTimer: Timer?
 
     init() {
+        let live = LiveTranscriptionService()
+        liveTranscription = live
+        assistant = LiveAssistant(live: live)
         recordings = RecordingStore.shared.loadAll()
+
+        commandTap.onDoubleTap = { [weak self] in
+            self?.askAssistant()
+        }
 
         transcription.onTranscribed = { [weak self] id, transcript in
             self?.nameRecording(id, from: transcript)
@@ -170,6 +179,8 @@ final class AppState {
             // e nada dele pode atrasar ou derrubar a captura.
             if liveTranscription.isEnabled {
                 liveTranscription.start(directory: session.directory)
+                assistant.startSession()
+                commandTap.start()
             }
             // A gravação começou — por este caminho ou pelo aviso. De qualquer modo, a
             // pergunta na tela já foi respondida pelos fatos.
@@ -181,6 +192,9 @@ final class AppState {
 
     private func stopRecording() {
         stopLevelUpdates()
+        commandTap.stop()
+        assistant.stopSession()
+        assistant.dismiss()
         liveTranscription.stop()
 
         defer {
@@ -211,6 +225,17 @@ final class AppState {
         } catch {
             report(error)
         }
+    }
+
+    /// Pede à IA uma resposta para o que acabou de ser dito. Só faz sentido gravando: é da
+    /// gravação que vêm a pergunta e o contexto.
+    func askAssistant() {
+        guard isRecording, liveTranscription.isEnabled else { return }
+        assistant.ask()
+    }
+
+    func dismissAssistant() {
+        assistant.dismiss()
     }
 
     /// Marca o instante atual como importante, para a IA priorizá-lo no resumo.

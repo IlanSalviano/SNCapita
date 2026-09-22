@@ -1,7 +1,8 @@
 import AppKit
 import Foundation
 
-/// `Capita --smoke-live [prefixo-do-id] [--minutes 10] [--speed 4] [--with-backlog]`
+/// `Capita --smoke-live [prefixo-do-id] [--minutes 10] [--speed 4] [--with-backlog]
+///                      [--ask 300,500]`
 ///
 /// Confere a transcrição ao vivo sem precisar de uma reunião. Pega a trilha do sistema de
 /// uma gravação já transcrita e a "regrava" num arquivo temporário, `speed` vezes mais
@@ -16,6 +17,9 @@ import Foundation
 ///
 /// `--with-backlog` transcreve a gravação inteira em paralelo, como aconteceria numa
 /// reunião emendada na outra: a do fim da primeira ainda rodando quando a segunda começa.
+///
+/// `--ask` pede ajuda à IA nesses instantes (em segundos de áudio), como o duplo toque em
+/// Command faria: exercita o trecho recente, a sessão do Claude e a resposta.
 ///
 /// Não toca na gravação original, e roda num processo à parte do app instalado.
 @MainActor
@@ -35,6 +39,8 @@ enum LiveSmokeTest {
         let minutes = option("--minutes").flatMap(Double.init) ?? 10
         let speed = option("--speed").flatMap(Double.init) ?? 4
         let withBacklog = CommandLine.arguments.contains("--with-backlog")
+        var askTimes = (option("--ask") ?? "").split(separator: ",")
+            .compactMap { Double($0) }.sorted()
 
         let transcribed = RecordingStore.shared.loadAll()
             .filter { state.transcription.hasTranscript(for: $0.id) }
@@ -72,6 +78,8 @@ enum LiveSmokeTest {
 
         let live = state.liveTranscription
         live.start(directory: workspace)
+        let assistant = state.assistant
+        if !askTimes.isEmpty { assistant.startSession() }
         let started = Date()
 
         // Espera o áudio todo chegar e o rascunho alcançá-lo — ou desiste depois de uma
@@ -79,17 +87,45 @@ enum LiveSmokeTest {
         Task { @MainActor in
             while true {
                 try? await Task.sleep(for: .seconds(1))
+
+                if let next = askTimes.first,
+                   Date().timeIntervalSince(started) * speed >= next {
+                    askTimes.removeFirst()
+                    await ask(assistant, at: next)
+                }
+
                 let fed = Date().timeIntervalSince(started) * speed >= duration
                 let caughtUp = (live.reports.last?.end ?? 0)
                     >= duration - LiveChunker.minimumWindow
                 let expired = Date().timeIntervalSince(started) > duration / speed + 120
-                if (fed && caughtUp) || expired || !live.isActive { break }
+                if (fed && caughtUp && askTimes.isEmpty) || expired || !live.isActive { break }
             }
 
+            assistant.stopSession()
             live.stop()
             try? FileManager.default.removeItem(at: workspace)
             report(live: live, reference: reference, duration: duration, speed: speed)
         }
+    }
+
+    private static func ask(_ assistant: LiveAssistant, at time: TimeInterval) async {
+        print(String(format: "\n▸ Pergunta aos %02d:%02d", Int(time) / 60, Int(time) % 60))
+        assistant.ask()
+        while assistant.isBusy {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        print("  ouvido:   \(assistant.heard)")
+        if case .failed(let reason) = assistant.phase {
+            print("  ✗ \(reason)")
+            return
+        }
+        if let timings = assistant.lastTimings {
+            print(String(format: "  trecho transcrito em %.1fs · primeira palavra em %@",
+                         timings.heard,
+                         timings.firstWord.map { String(format: "%.1fs", $0) } ?? "—"))
+        }
+        print("  resposta:\n    " + assistant.answer
+            .replacingOccurrences(of: "\n", with: "\n    "))
     }
 
     // MARK: - Simulação da gravação

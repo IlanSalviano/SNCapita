@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Janela de ajustes: o motor de IA, a detecção de reunião e a transcrição ao vivo — as
+/// Janela de ajustes: o motor de IA, a detecção de reunião e a ajuda ao vivo — as
 /// escolhas do app com consequência visível para o usuário.
 @MainActor
 final class SettingsWindowController: NSObject, NSWindowDelegate {
@@ -25,7 +25,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let hosting = NSHostingController(rootView: SettingsView().environment(state))
         let window = NSWindow(contentViewController: hosting)
         window.title = S.settingsTitle
-        window.setContentSize(NSSize(width: 460, height: 620))
+        window.setContentSize(NSSize(width: 460, height: 700))
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.delegate = self
@@ -52,6 +52,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
 struct SettingsView: View {
     @Environment(AppState.self) private var state
+    @State private var inputMonitoringAuthorized = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -186,6 +187,37 @@ struct SettingsView: View {
                 .font(Design.Typography.caption)
                 .foregroundStyle(Design.Palette.secondaryLabel)
                 .fixedSize(horizontal: false, vertical: true)
+
+            // O duplo toque em ⌘ depende de Monitoramento de Entrada. O botão da cápsula
+            // funciona sem ela, então a falta só é avisada, nunca bloqueia a opção.
+            if live.isEnabled, !inputMonitoringAuthorized {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Design.Palette.secondaryLabel)
+                    Text(S.liveInputMonitoring)
+                        .font(Design.Typography.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(S.liveOpenInputMonitoring) {
+                        Permissions.openSettings(for: .inputMonitoring)
+                    }
+                    .buttonStyle(.link)
+                    .font(Design.Typography.caption)
+                }
+                .padding(.top, 2)
+            }
+        }
+        .onChange(of: live.isEnabled) { _, enabled in
+            // Pedido na hora em que a pessoa liga a opção: é quando ela sabe por que o
+            // sistema está perguntando.
+            if enabled, !CommandDoubleTapDetector.isAuthorized {
+                CommandDoubleTapDetector.requestAccess()
+            }
+            inputMonitoringAuthorized = CommandDoubleTapDetector.isAuthorized
+        }
+        .onAppear { inputMonitoringAuthorized = CommandDoubleTapDetector.isAuthorized }
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in
+            inputMonitoringAuthorized = CommandDoubleTapDetector.isAuthorized
         }
     }
 

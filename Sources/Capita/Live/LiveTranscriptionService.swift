@@ -48,6 +48,17 @@ final class LiveTranscriptionService {
 
     private(set) var reports: [BlockReport] = []
 
+    /// O que foi dito nos últimos segundos, transcrito na hora — a pergunta que o usuário
+    /// quer responder. O rascunho confirmado fica até ~20s atrás da conversa, então o
+    /// trecho final não pode vir dele.
+    struct RecentSpeech: Sendable {
+        let text: String
+        let start: TimeInterval
+        let end: TimeInterval
+    }
+
+    private let recentRequests = RecentSpeechRequests()
+
     private var task: Task<Void, Never>?
     private var directory: URL?
     private var language = ""
@@ -75,9 +86,12 @@ final class LiveTranscriptionService {
         language = ""
         isActive = true
 
+        let requests = recentRequests
         task = Task.detached(priority: .userInitiated) { [weak self] in
             await Self.run(
-                systemTrack: systemTrack, modelURL: modelURL, vadURL: vadURL, service: self)
+                systemTrack: systemTrack, modelURL: modelURL, vadURL: vadURL,
+                requests: requests, service: self)
+            requests.cancelAll()
         }
     }
 
@@ -87,7 +101,20 @@ final class LiveTranscriptionService {
         task.cancel()
         self.task = nil
         isActive = false
+        recentRequests.cancelAll()
         logSummary()
+    }
+
+    /// Transcreve agora os últimos `seconds` de áudio, sem esperar o próximo bloco.
+    ///
+    /// Quem transcreve é o próprio laço, dono do motor: o pedido entra na fila e é atendido
+    /// na próxima volta, antes de qualquer bloco — no pior caso, depois do bloco que já
+    /// estiver em andamento (~1,5s). Nil se o serviço não está rodando.
+    func recentSpeech(seconds: TimeInterval) async -> RecentSpeech? {
+        guard isActive else { return nil }
+        return await withCheckedContinuation { continuation in
+            recentRequests.add(seconds: seconds, continuation)
+        }
     }
 
     /// O que foi dito entre dois instantes da gravação, em texto corrido.
@@ -103,7 +130,8 @@ final class LiveTranscriptionService {
     /// Roda fora da main thread, dono exclusivo do motor e do leitor: o `whisper_context`
     /// não é seguro entre threads, e aqui só esta tarefa o toca.
     private nonisolated static func run(
-        systemTrack: URL, modelURL: URL, vadURL: URL?, service: LiveTranscriptionService?
+        systemTrack: URL, modelURL: URL, vadURL: URL?, requests: RecentSpeechRequests,
+        service: LiveTranscriptionService?
     ) async {
         let loadStarted = Date()
         let engine: WhisperEngine
@@ -128,6 +156,13 @@ final class LiveTranscriptionService {
             // instante ruim; tentamos de novo na próxima volta em vez de desistir.
             if reader == nil {
                 reader = try? GrowingWAVReader(url: systemTrack)
+            }
+
+            // Um pedido de ajuda passa na frente do próximo bloco: é alguém esperando.
+            while let request = requests.take() {
+                request.continuation.resume(returning: Self.recentSpeech(
+                    request.seconds, reader: reader, engine: engine,
+                    language: language, vadURL: vadURL))
             }
 
             guard let reader, let available = try? reader.availableSamples(),
@@ -177,6 +212,26 @@ final class LiveTranscriptionService {
         }
     }
 
+    private nonisolated static func recentSpeech(
+        _ seconds: TimeInterval, reader: GrowingWAVReader?, engine: WhisperEngine,
+        language: String?, vadURL: URL?
+    ) -> RecentSpeech? {
+        guard let reader, let end = try? reader.availableSamples(), end > 0 else { return nil }
+        let start = max(0, end - Int(seconds * GrowingWAVReader.sampleRate))
+        do {
+            let samples = try reader.samples(from: start, to: end)
+            let found = try engine.transcribe(
+                samples: samples, track: .system, language: language, vadModelURL: vadURL)
+            return RecentSpeech(
+                text: found.map(\.segment.text).joined(separator: " "),
+                start: Double(start) / GrowingWAVReader.sampleRate,
+                end: Double(end) / GrowingWAVReader.sampleRate)
+        } catch {
+            Diagnostics.log("ao vivo: trecho recente falhou — \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     // MARK: - Estado, na main thread
 
     private func setModelName(_ name: String) { modelName = name }
@@ -185,6 +240,7 @@ final class LiveTranscriptionService {
     private func finishWithError() {
         task = nil
         isActive = false
+        recentRequests.cancelAll()
     }
 
     private func append(_ new: [TranscriptSegment], report: BlockReport) {
@@ -243,7 +299,9 @@ final class LiveTranscriptionService {
 /// com o resto da frase.
 struct LiveChunker {
 
-    static let pollInterval: TimeInterval = 2
+    /// Curto porque um pedido de ajuda espera por esta volta; checar o tamanho do arquivo
+    /// custa quase nada.
+    static let pollInterval: TimeInterval = 0.2
 
     /// Espera juntar ao menos isto antes de transcrever: blocos curtos demais dão ao
     /// Whisper pouco contexto e erram mais.
@@ -307,5 +365,40 @@ struct LiveChunker {
     /// Um bloco que falhou: segue adiante em vez de tentar o mesmo trecho para sempre.
     mutating func skip(_ window: Window) {
         cursor = window.end
+    }
+}
+
+/// Pedidos de "o que acabou de ser dito", entregues ao laço de transcrição.
+///
+/// Uma fila com trava, e não um ator: quem a esvazia é o laço, que não pode parar para
+/// esperar um ator no meio da volta.
+final class RecentSpeechRequests: @unchecked Sendable {
+
+    struct Request {
+        let seconds: TimeInterval
+        let continuation: CheckedContinuation<LiveTranscriptionService.RecentSpeech?, Never>
+    }
+
+    private let lock = NSLock()
+    private var pending: [Request] = []
+
+    func add(
+        seconds: TimeInterval,
+        _ continuation: CheckedContinuation<LiveTranscriptionService.RecentSpeech?, Never>
+    ) {
+        lock.withLock { pending.append(Request(seconds: seconds, continuation: continuation)) }
+    }
+
+    func take() -> Request? {
+        lock.withLock { pending.isEmpty ? nil : pending.removeFirst() }
+    }
+
+    /// Nenhum pedido pode ficar sem resposta: quem espera ficaria preso para sempre.
+    func cancelAll() {
+        let dropped = lock.withLock {
+            defer { pending.removeAll() }
+            return pending
+        }
+        dropped.forEach { $0.continuation.resume(returning: nil) }
     }
 }

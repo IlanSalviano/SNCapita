@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBar: MenuBarController?
     private var floatingPanel: FloatingRecorderPanel?
     private var meetingPrompt: MeetingPromptPanel?
+    private var liveAnswer: LiveAnswerPanel?
     private var library: LibraryWindowController?
     private var settings: SettingsWindowController?
     private let state = AppState()
@@ -48,6 +49,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        liveAnswer = LiveAnswerPanel(state: state)
+        state.assistant.onPresent = { [weak self] visible in
+            if visible {
+                self?.liveAnswer?.show()
+            } else {
+                self?.liveAnswer?.hide()
+            }
+        }
+
         state.onRecordingChanged = { [weak self] isRecording in
             self?.menuBar?.updateIcon(isRecording: isRecording)
             if isRecording {
@@ -64,6 +74,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // Atas escritas antes da Fase 5 têm um título bom que nunca chegou à lista.
             state.summaries.adoptTitlesFromSavedSummaries()
             Task { await state.startWatchingMeetings() }
+            // O duplo toque em ⌘ precisa de Monitoramento de Entrada, e o macOS só a aplica
+            // a um processo aberto depois dela: pedir na abertura, e não na primeira
+            // gravação, é o que a deixa valendo já na próxima reunião. O sistema só mostra
+            // o pedido uma vez; depois disso esta chamada não faz nada.
+            if state.liveTranscription.isEnabled, !CommandDoubleTapDetector.isAuthorized {
+                CommandDoubleTapDetector.requestAccess()
+            }
         }
 
         if let seconds = SmokeTest.requestedDuration {

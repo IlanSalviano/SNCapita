@@ -67,7 +67,8 @@ final class FloatingRecorderPanel {
     }
 }
 
-/// Conteúdo da cápsula: marca, medidor, parar, anotar.
+/// Conteúdo da cápsula: marca, medidor, parar, anotar e, com a ajuda ao vivo ligada, pedir
+/// ajuda à IA.
 private struct FloatingRecorderView: View {
     @Environment(AppState.self) private var state
 
@@ -99,6 +100,18 @@ private struct FloatingRecorderView: View {
             }
             .buttonStyle(.plain)
             .help(S.markMoment)
+
+            if state.liveTranscription.isEnabled {
+                divider
+
+                Button(action: state.askAssistant) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(Design.Palette.secondaryLabel)
+                }
+                .buttonStyle(.plain)
+                .help(S.assistButtonHelp)
+            }
         }
         .padding(.vertical, 16)
         .frame(width: Design.Metrics.floatingWidth)

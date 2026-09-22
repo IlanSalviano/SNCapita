@@ -133,6 +133,18 @@ enum S {
     static var liveTitle: String { t("live.title") }
     static var liveToggle: String { t("live.toggle") }
     static var liveExplanation: String { t("live.explanation") }
+    static var liveInputMonitoring: String { t("live.input_monitoring") }
+    static var liveOpenInputMonitoring: String { t("live.open_input_monitoring") }
+    static var assistTitle: String { t("assist.title") }
+    static func assistHeard(_ text: String) -> String { String(format: t("assist.heard"), text) }
+    static var assistListening: String { t("assist.listening") }
+    static var assistThinking: String { t("assist.thinking") }
+    static var assistHint: String { t("assist.hint") }
+    static var assistButtonHelp: String { t("assist.button_help") }
+    static var assistUnavailable: String { t("assist.unavailable") }
+    static var assistNotRecording: String { t("assist.not_recording") }
+    static var assistNothingHeard: String { t("assist.nothing_heard") }
+    static var assistFailed: String { t("assist.failed") }
     static var meetingNotificationsDenied: String { t("meeting.notifications_denied") }
     static var openNotificationSettings: String { t("meeting.open_notification_settings") }
 
