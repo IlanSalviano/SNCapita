@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        ScreenShareExclusion.install()
 
         menuBar = MenuBarController(state: state)
         floatingPanel = FloatingRecorderPanel(state: state)

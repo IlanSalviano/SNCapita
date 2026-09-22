@@ -43,6 +43,7 @@ final class FloatingRecorderPanel {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.isMovableByWindowBackground = true   // arrastável por qualquer ponto
         panel.hidesOnDeactivate = false
+        ScreenShareExclusion.apply(to: panel)
 
         positionAtRightEdge(panel, size: size)
         panel.orderFrontRegardless()   // aparece sem ativar o app

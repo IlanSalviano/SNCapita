@@ -4,9 +4,8 @@ import SwiftUI
 /// Onde a resposta da ajuda ao vivo aparece.
 ///
 /// Segue as regras dos outros painéis — não ativa o app, não rouba o foco da chamada,
-/// aparece em todos os espaços e por cima de tela cheia — com uma a mais: fica fora do
-/// compartilhamento de tela (`sharingType = .none`). Quem compartilha a tela numa reunião
-/// não quer que os outros leiam a cola.
+/// aparece em todos os espaços e por cima de tela cheia — e, como todas as janelas do app,
+/// fica fora do compartilhamento de tela (ver `ScreenShareExclusion`).
 ///
 /// Aceita o teclado só quando o usuário clica na caixa de pergunta — ver `TypingPanel`.
 @MainActor
@@ -42,7 +41,7 @@ final class LiveAnswerPanel {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
-        panel.sharingType = .none
+        ScreenShareExclusion.apply(to: panel)
 
         position(panel)
         panel.orderFrontRegardless()

@@ -44,6 +44,7 @@ final class MeetingPromptPanel {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
+        ScreenShareExclusion.apply(to: panel)
 
         position(panel, size: size)
         panel.orderFrontRegardless()

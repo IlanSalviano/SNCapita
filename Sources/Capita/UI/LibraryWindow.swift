@@ -34,6 +34,7 @@ final class LibraryWindowController: NSObject, NSWindowDelegate {
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
+        ScreenShareExclusion.apply(to: window)
         window.delegate = self
         window.center()
 

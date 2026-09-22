@@ -28,6 +28,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.setContentSize(NSSize(width: 460, height: 700))
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
+        ScreenShareExclusion.apply(to: window)
         window.delegate = self
         window.center()
 

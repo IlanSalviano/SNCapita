@@ -75,6 +75,7 @@ final class MenuBarController: NSObject {
     private func showPopover() {
         guard let button = statusItem?.button else { return }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .maxY)
+        ScreenShareExclusion.apply(to: popover.contentViewController?.view.window)
         popover.contentViewController?.view.window?.makeKey()
 
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
