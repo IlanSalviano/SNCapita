@@ -69,6 +69,12 @@ final class TranscriptionService {
         Task { await processQueue() }
     }
 
+    /// Tira da fila uma gravação que ainda não começou a ser transcrita. A que está sendo
+    /// transcrita agora não sai: o whisper não tem como parar no meio.
+    func dequeue(_ id: UUID) {
+        queue.removeAll { $0 == id }
+    }
+
     /// Retoma o que ficou pela metade quando o app foi fechado.
     ///
     /// Fechar o app logo depois de uma reunião é o caso comum, não o excepcional: a pessoa

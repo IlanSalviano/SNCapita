@@ -175,7 +175,11 @@ final class RecordingStore {
         return try? decoder.decode(Recording.self, from: data)
     }
 
-    func delete(_ recording: Recording) throws {
-        try FileManager.default.removeItem(at: directory(for: recording.id))
+    /// Move a gravação inteira para o Lixo — áudio, transcrição, resumo, mapa mental.
+    ///
+    /// Lixo, e não remoção: uma reunião apagada por engano não se grava de novo, e o Lixo
+    /// dá o desfazer que o app não tem.
+    func moveToTrash(_ id: UUID) throws {
+        try FileManager.default.trashItem(at: directory(for: id), resultingItemURL: nil)
     }
 }

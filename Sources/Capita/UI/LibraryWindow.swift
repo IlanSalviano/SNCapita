@@ -73,6 +73,9 @@ struct LibraryView: View {
     /// clicar de novo dentro dele para digitar.
     @FocusState private var isRenamingFocused: Bool
 
+    /// A gravação esperando confirmação para ir ao Lixo.
+    @State private var pendingDeletion: Recording?
+
     var body: some View {
         NavigationSplitView {
             recordingList
@@ -85,6 +88,18 @@ struct LibraryView: View {
                     S.noSelection, systemImage: "waveform",
                     description: Text(S.noSelectionHint))
             }
+        }
+        .confirmationDialog(
+            S.deleteConfirmTitle,
+            isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if !$0 { pendingDeletion = nil } }),
+            presenting: pendingDeletion
+        ) { recording in
+            Button(S.deleteConfirmAction, role: .destructive) { delete(recording) }
+            Button(S.cancel, role: .cancel) {}
+        } message: { recording in
+            Text(S.deleteConfirmMessage(recording.displayTitle))
         }
         .onAppear {
             state.refreshRecordings()
@@ -146,9 +161,34 @@ struct LibraryView: View {
                         state.applyTitle("", source: .timestamp, to: recording.id)
                     }
                 }
+                Divider()
+                Button(S.deleteRecording, role: .destructive) {
+                    pendingDeletion = recording
+                }
+                .disabled(!state.canDelete(recording.id))
             }
         }
+        // A tecla Delete na lista, como no Finder e no Mail: pede a mesma confirmação.
+        .onDeleteCommand {
+            guard let selection,
+                  let recording = state.recordings.first(where: { $0.id == selection }),
+                  state.canDelete(recording.id) else { return }
+            pendingDeletion = recording
+        }
         .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 340)
+    }
+
+    /// Depois de apagar, a seleção passa para a vizinha de baixo — ou de cima, se era a
+    /// última —, e não para o vazio: quem está limpando a lista apaga várias seguidas.
+    private func delete(_ recording: Recording) {
+        let index = state.recordings.firstIndex { $0.id == recording.id }
+        state.deleteRecording(recording.id)
+        if selection == recording.id {
+            let remaining = state.recordings
+            selection = index.flatMap { remaining.indices.contains($0) ? remaining[$0].id : nil }
+                ?? remaining.last?.id
+        }
+        pendingDeletion = nil
     }
 
     private func startRename(_ recording: Recording) {

@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 /// `Capita --smoke-live [prefixo-do-id] [--minutes 10] [--speed 4] [--with-backlog]
-///                      [--ask 300,500]`
+///                      [--ask 300,500] [--question "texto"]`
 ///
 /// Confere a transcrição ao vivo sem precisar de uma reunião. Pega a trilha do sistema de
 /// uma gravação já transcrita e a "regrava" num arquivo temporário, `speed` vezes mais
@@ -19,7 +19,8 @@ import Foundation
 /// reunião emendada na outra: a do fim da primeira ainda rodando quando a segunda começa.
 ///
 /// `--ask` pede ajuda à IA nesses instantes (em segundos de áudio), como o duplo toque em
-/// Command faria: exercita o trecho recente, a sessão do Claude e a resposta.
+/// Command faria: exercita o trecho recente, a sessão do Claude e a resposta. Com
+/// `--question`, a pergunta é essa, como se digitada na caixa do painel.
 ///
 /// Não toca na gravação original, e roda num processo à parte do app instalado.
 @MainActor
@@ -91,7 +92,7 @@ enum LiveSmokeTest {
                 if let next = askTimes.first,
                    Date().timeIntervalSince(started) * speed >= next {
                     askTimes.removeFirst()
-                    await ask(assistant, at: next)
+                    await ask(assistant, at: next, question: option("--question"))
                 }
 
                 let fed = Date().timeIntervalSince(started) * speed >= duration
@@ -108,9 +109,12 @@ enum LiveSmokeTest {
         }
     }
 
-    private static func ask(_ assistant: LiveAssistant, at time: TimeInterval) async {
+    private static func ask(
+        _ assistant: LiveAssistant, at time: TimeInterval, question: String?
+    ) async {
         print(String(format: "\n▸ Pergunta aos %02d:%02d", Int(time) / 60, Int(time) % 60))
-        assistant.ask()
+        if let question { print("  digitada: \(question)") }
+        assistant.ask(question: question)
         while assistant.isBusy {
             try? await Task.sleep(for: .milliseconds(100))
         }

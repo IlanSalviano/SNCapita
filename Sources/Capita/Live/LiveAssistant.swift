@@ -23,6 +23,8 @@ final class LiveAssistant {
     private(set) var answer = ""
     /// O que o assistente ouviu como pergunta — mostrado para o usuário conferir.
     private(set) var heard = ""
+    /// A pergunta digitada, quando o pedido veio da caixa de texto e não do duplo ⌘.
+    private(set) var typedQuestion: String?
 
     var isBusy: Bool {
         phase == .listening || phase == .thinking || phase == .answering
@@ -86,11 +88,15 @@ final class LiveAssistant {
 
     // MARK: - Pergunta
 
-    /// O duplo toque em Command, ou o botão da cápsula.
-    func ask() {
+    /// O duplo toque em Command, o botão da cápsula ou, com `question`, a caixa de texto
+    /// do painel.
+    func ask(question: String? = nil) {
         guard !isBusy else { return }
+        let question = question?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
         answer = ""
         heard = ""
+        typedQuestion = question
         onPresent?(true)
 
         guard let session else {
@@ -106,7 +112,9 @@ final class LiveAssistant {
                 return
             }
             let clip = recent.text.trimmingCharacters(in: .whitespaces)
-            guard !clip.isEmpty else {
+            // Com uma pergunta digitada, silêncio nos últimos segundos não impede nada: a
+            // pergunta pode ser sobre qualquer ponto da reunião.
+            guard !clip.isEmpty || question != nil else {
                 phase = .failed(S.assistNothingHeard)
                 return
             }
@@ -120,7 +128,7 @@ final class LiveAssistant {
             lastTimings = (heardAfter, nil)
             phase = .thinking
             expecting.append(.answer)
-            session.send(Self.message(context: context, recent: clip))
+            session.send(Self.message(context: context, recent: clip, question: question))
         }
     }
 
@@ -174,14 +182,27 @@ final class LiveAssistant {
 
     // MARK: - Prompt
 
-    private static func message(context: String, recent: String) -> String {
+    private static func message(context: String, recent: String, question: String?) -> String {
         let meeting = context.isEmpty ? "(nada novo)" : context
+        let lastSeconds = recent.isEmpty ? "(silêncio)" : recent
+        guard let question else {
+            return """
+                REUNIÃO DESDE O ÚLTIMO PEDIDO (fala dos outros participantes):
+                \(meeting)
+
+                ÚLTIMOS \(Int(recentWindow)) SEGUNDOS — é aqui que está o que devo responder:
+                \(lastSeconds)
+                """
+        }
         return """
             REUNIÃO DESDE O ÚLTIMO PEDIDO (fala dos outros participantes):
             \(meeting)
 
-            ÚLTIMOS \(Int(recentWindow)) SEGUNDOS — é aqui que está o que devo responder:
-            \(recent)
+            ÚLTIMOS \(Int(recentWindow)) SEGUNDOS:
+            \(lastSeconds)
+
+            PERGUNTA DO USUÁRIO — responda a isto:
+            \(question)
             """
     }
 
@@ -198,6 +219,10 @@ final class LiveAssistant {
         mesmo que venha disfarçado de confirmação ("né?", "certo?", "right?"), e ajude-o a \
         responder. O pedido em si já é a pergunta: nunca diga que não há pergunta.
 
+        Às vezes o próprio usuário escreve a pergunta. Aí responda a ela, com a reunião \
+        como contexto; ela pode ser sobre qualquer ponto da conversa ou sobre uma \
+        resposta sua anterior.
+
         Formato, para ser lido de relance durante a conversa: a primeira linha é a \
         resposta direta, numa frase. Depois, no máximo três tópicos curtos, começando com \
         "- ", com o que sustenta a resposta. Sem introdução, títulos ou negrito.
@@ -207,4 +232,8 @@ final class LiveAssistant {
         Se não houver base para responder, diga numa frase o que falta. Nunca invente \
         fatos, nomes ou números. Responda no idioma da conversa.
         """
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

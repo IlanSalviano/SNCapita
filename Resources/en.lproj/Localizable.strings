@@ -127,9 +127,15 @@
 "assist.heard" = "Heard: “%@”";
 "assist.listening" = "Listening to the last 30 seconds…";
 "assist.thinking" = "Thinking…";
-"assist.hint" = "Double-tap ⌘ to ask again";
 "assist.button_help" = "Ask the AI for help (double-tap ⌘)";
 "assist.unavailable" = "Live help uses Claude Code, which wasn't found on this Mac.";
 "assist.not_recording" = "Live transcription isn't running for this recording. It starts with the next recording after you turn the option on.";
 "assist.nothing_heard" = "I didn't hear anyone speak in the last 30 seconds.";
 "assist.failed" = "Claude didn't answer. Try again.";
+"assist.you_asked" = "You asked: “%@”";
+"assist.ask_placeholder" = "Ask anything about the meeting… (⌘⌘ answers the last remark)";
+"library.delete" = "Move to Trash…";
+"library.delete_confirm_title" = "Move this recording to the Trash?";
+"library.delete_confirm_message" = "“%@” will go to the Trash along with its audio, transcript and summary. You can recover it from there until the Trash is emptied.";
+"library.delete_confirm_action" = "Move to Trash";
+"common.cancel" = "Cancel";

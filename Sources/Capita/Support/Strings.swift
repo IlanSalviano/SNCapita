@@ -35,6 +35,13 @@ enum S {
     static var naming: String { t("library.naming") }
     static var rename: String { t("library.rename") }
     static var useTimestampTitle: String { t("library.use_timestamp_title") }
+    static var deleteRecording: String { t("library.delete") }
+    static var deleteConfirmTitle: String { t("library.delete_confirm_title") }
+    static func deleteConfirmMessage(_ title: String) -> String {
+        String(format: t("library.delete_confirm_message"), title)
+    }
+    static var deleteConfirmAction: String { t("library.delete_confirm_action") }
+    static var cancel: String { t("common.cancel") }
     static var speakerYou: String { t("speaker.you") }
     static var speakerOthers: String { t("speaker.others") }
     static var participants: String { t("speaker.participants") }
@@ -139,7 +146,10 @@ enum S {
     static func assistHeard(_ text: String) -> String { String(format: t("assist.heard"), text) }
     static var assistListening: String { t("assist.listening") }
     static var assistThinking: String { t("assist.thinking") }
-    static var assistHint: String { t("assist.hint") }
+    static func assistYouAsked(_ text: String) -> String {
+        String(format: t("assist.you_asked"), text)
+    }
+    static var assistAskPlaceholder: String { t("assist.ask_placeholder") }
     static var assistButtonHelp: String { t("assist.button_help") }
     static var assistUnavailable: String { t("assist.unavailable") }
     static var assistNotRecording: String { t("assist.not_recording") }

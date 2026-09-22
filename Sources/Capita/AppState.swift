@@ -234,6 +234,12 @@ final class AppState {
         assistant.ask()
     }
 
+    /// Uma pergunta escrita pelo usuário no painel da ajuda ao vivo.
+    func askAssistant(_ question: String) {
+        guard isRecording, liveTranscription.isEnabled else { return }
+        assistant.ask(question: question)
+    }
+
     func dismissAssistant() {
         assistant.dismiss()
     }
@@ -275,6 +281,25 @@ final class AppState {
                 Diagnostics.log("título não gerado (\(id)): \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Se a gravação pode ser apagada agora. A que está sendo transcrita não pode: o
+    /// transcript seria escrito numa pasta que já não existe, e a falha apareceria só no log.
+    func canDelete(_ id: UUID) -> Bool {
+        transcription.currentRecordingID != id
+    }
+
+    /// Manda a gravação para o Lixo. Só a biblioteca chama, depois de confirmar.
+    func deleteRecording(_ id: UUID) {
+        guard canDelete(id) else { return }
+        transcription.dequeue(id)
+        do {
+            try RecordingStore.shared.moveToTrash(id)
+            Diagnostics.log("gravação movida para o Lixo: \(id)")
+        } catch {
+            report(error)
+        }
+        refreshRecordings()
     }
 
     /// Renomeia uma gravação. Vazio devolve a linha para data e hora.

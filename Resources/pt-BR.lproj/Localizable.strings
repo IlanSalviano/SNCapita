@@ -127,9 +127,15 @@
 "assist.heard" = "Ouvi: “%@”";
 "assist.listening" = "Ouvindo os últimos 30 segundos…";
 "assist.thinking" = "Pensando…";
-"assist.hint" = "Toque duas vezes em ⌘ para perguntar de novo";
 "assist.button_help" = "Pedir ajuda à IA (⌘ duas vezes)";
 "assist.unavailable" = "A ajuda ao vivo usa o Claude Code, que não foi encontrado nesta máquina.";
 "assist.not_recording" = "A transcrição ao vivo não está rodando nesta gravação. Ela começa com a próxima gravação depois de ligar a opção.";
 "assist.nothing_heard" = "Não ouvi ninguém falar nos últimos 30 segundos.";
 "assist.failed" = "O Claude não respondeu. Tente de novo.";
+"assist.you_asked" = "Você perguntou: “%@”";
+"assist.ask_placeholder" = "Pergunte algo sobre a reunião… (⌘⌘ responde à última fala)";
+"library.delete" = "Mover para o Lixo…";
+"library.delete_confirm_title" = "Mover esta gravação para o Lixo?";
+"library.delete_confirm_message" = "“%@” vai para o Lixo com o áudio, a transcrição e o resumo. Dá para recuperá-la de lá enquanto o Lixo não for esvaziado.";
+"library.delete_confirm_action" = "Mover para o Lixo";
+"common.cancel" = "Cancelar";
