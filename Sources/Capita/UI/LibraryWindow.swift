@@ -77,6 +77,29 @@ struct LibraryView: View {
     /// A gravação esperando confirmação para ir ao Lixo.
     @State private var pendingDeletion: Recording?
 
+    /// O texto no campo de busca e o que ele encontrou. O resultado fica guardado, e não
+    /// é recalculado a cada desenho da lista: a busca varre megabytes de transcrição.
+    @State private var query = ""
+    @State private var matches: [UUID: SearchIndex.Match] = [:]
+    @FocusState private var isSearchFocused: Bool
+
+    private var isSearching: Bool {
+        !query.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// As gravações na lista: todas, ou só as que a busca encontrou.
+    private var visibleRecordings: [Recording] {
+        isSearching ? state.recordings.filter { matches[$0.id] != nil } : state.recordings
+    }
+
+    /// O que obriga a refazer a busca: outra palavra no campo, uma transcrição que entrou
+    /// ou saiu do índice, ou um título que mudou.
+    private struct SearchKey: Equatable {
+        let query: String
+        let revision: Int
+        let titles: [String]
+    }
+
     var body: some View {
         NavigationSplitView {
             recordingList
@@ -102,6 +125,23 @@ struct LibraryView: View {
         } message: { recording in
             Text(S.deleteConfirmMessage(recording.displayTitle))
         }
+        .searchable(text: $query, placement: .sidebar, prompt: S.searchPrompt)
+        .searchFocused($isSearchFocused)
+        .task(id: SearchKey(query: query, revision: state.search.revision,
+                            titles: state.recordings.map(\.displayTitle))) {
+            // Espera o fim da digitação: buscar a cada letra de "orçamento" seria varrer
+            // tudo nove vezes para mostrar só o último resultado.
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            matches = state.search.search(query, in: state.recordings)
+        }
+        // Sem menu principal, o ⌘F do sistema não existe: um botão invisível faz as vezes.
+        .background {
+            Button("") { isSearchFocused = true }
+                .keyboardShortcut("f")
+                .opacity(0)
+                .accessibilityHidden(true)
+        }
         .onAppear {
             state.refreshRecordings()
             selection = selection
@@ -111,7 +151,7 @@ struct LibraryView: View {
     }
 
     private var recordingList: some View {
-        List(state.recordings, selection: $selection) { recording in
+        List(visibleRecordings, selection: $selection) { recording in
             VStack(alignment: .leading, spacing: 3) {
                 if renaming == recording.id {
                     TextField("", text: $draft)
@@ -152,6 +192,13 @@ struct LibraryView: View {
                 .font(Design.Typography.caption)
                 .foregroundStyle(Design.Palette.secondaryLabel)
                 .lineLimit(1)
+
+                if isSearching, let snippet = matches[recording.id]?.snippet {
+                    Text(highlighted(snippet))
+                        .font(Design.Typography.caption)
+                        .foregroundStyle(Design.Palette.secondaryLabel)
+                        .lineLimit(1)
+                }
             }
             .padding(.vertical, 3)
             .tag(recording.id)
@@ -176,7 +223,31 @@ struct LibraryView: View {
                   state.canDelete(recording.id) else { return }
             pendingDeletion = recording
         }
+        .overlay {
+            if isSearching, visibleRecordings.isEmpty {
+                ContentUnavailableView(S.searchNoResults, systemImage: "magnifyingglass")
+            }
+        }
         .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 340)
+    }
+
+    /// O trecho com as palavras buscadas em negrito — é o negrito que diz, de relance,
+    /// por que esta reunião está na lista.
+    private func highlighted(_ snippet: String) -> AttributedString {
+        var text = AttributedString(snippet)
+        for term in query.split(whereSeparator: \.isWhitespace).map(String.init) {
+            var rest = snippet.startIndex..<snippet.endIndex
+            while let found = snippet.range(
+                    of: term, options: [.caseInsensitive, .diacriticInsensitive], range: rest),
+                  !found.isEmpty {
+                if let range = Range(found, in: text) {
+                    text[range].font = Design.Typography.caption.bold()
+                    text[range].foregroundColor = Design.Palette.label
+                }
+                rest = found.upperBound..<snippet.endIndex
+            }
+        }
+        return text
     }
 
     /// Depois de apagar, a seleção passa para a vizinha de baixo — ou de cima, se era a

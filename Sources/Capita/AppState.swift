@@ -24,6 +24,7 @@ final class AppState {
     let export = ExportService()
     let summaries = SummaryService()
     let mindMaps = MindMapService()
+    let search = SearchIndex()
     let meetings = MeetingDetector()
     let meetingNotifier = MeetingNotifier()
 
@@ -52,12 +53,14 @@ final class AppState {
         liveTranscription = live
         assistant = LiveAssistant(live: live)
         recordings = RecordingStore.shared.loadAll()
+        search.load(recordings.map(\.id))
 
         commandTap.onDoubleTap = { [weak self] in
             self?.askAssistant()
         }
 
         transcription.onTranscribed = { [weak self] id, transcript in
+            self?.search.update(id, with: transcript)
             self?.nameRecording(id, from: transcript)
         }
         summaries.onTitleChanged = { [weak self] _ in
@@ -342,6 +345,7 @@ final class AppState {
 
     func refreshRecordings() {
         recordings = RecordingStore.shared.loadAll()
+        search.retain(Set(recordings.map(\.id)))
     }
 
     /// Injetado pelo AppDelegate: a janela é AppKit e vive fora da árvore SwiftUI.

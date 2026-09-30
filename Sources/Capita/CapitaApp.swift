@@ -100,6 +100,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SmokeTest.runExport(state: state)
         } else if SmokeTest.wantsSummarize {
             SmokeTest.runSummarize(state: state)
+        } else if SearchSmokeTest.isRequested {
+            SearchSmokeTest.run(state: state)
         } else if LiveSmokeTest.isRequested {
             LiveSmokeTest.run(state: state)
         } else if CommandLine.arguments.contains("--open-library")

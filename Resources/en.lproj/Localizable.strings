@@ -19,6 +19,8 @@
 "library.no_selection_hint" = "Pick a recording from the list to listen and read the transcript.";
 "library.transcribing" = "Transcribing…";
 "library.not_transcribed" = "Not transcribed";
+"library.search_prompt" = "Search meetings";
+"library.search_no_results" = "No meetings found";
 "library.transcription_pending" = "Transcription starts automatically when recording ends.";
 "library.playback_failed" = "Playback failed";
 "library.naming" = "Naming…";

@@ -19,6 +19,8 @@
 "library.no_selection_hint" = "Escolha uma gravação na lista para ouvir e ler a transcrição.";
 "library.transcribing" = "Transcrevendo…";
 "library.not_transcribed" = "Sem transcrição";
+"library.search_prompt" = "Buscar nas reuniões";
+"library.search_no_results" = "Nenhuma reunião encontrada";
 "library.transcription_pending" = "A transcrição começa automaticamente ao fim da gravação.";
 "library.playback_failed" = "Não foi possível reproduzir";
 "library.naming" = "Nomeando…";

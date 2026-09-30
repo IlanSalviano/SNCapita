@@ -30,6 +30,8 @@ enum S {
     static var noSelectionHint: String { t("library.no_selection_hint") }
     static var transcribing: String { t("library.transcribing") }
     static var notTranscribed: String { t("library.not_transcribed") }
+    static var searchPrompt: String { t("library.search_prompt") }
+    static var searchNoResults: String { t("library.search_no_results") }
     static var transcriptionPending: String { t("library.transcription_pending") }
     static var playbackFailed: String { t("library.playback_failed") }
     static var naming: String { t("library.naming") }

@@ -102,6 +102,7 @@ Capita --smoke-engines      # detecta e testa o motor de IA
 Capita --smoke-meetings     # narra a detecção de reunião ao vivo
 Capita --smoke-summarize    # resume e imprime a ata inteira (--force regera)
 Capita --smoke-export       # mixa, exporta tudo para /tmp e confere
+Capita --smoke-search       # busca com e sem acento; índice acompanha renomear e apagar
 Capita --open-library       # abre a biblioteca direto
 log stream --predicate 'subsystem == "com.ilansalviano.capita"'
 ```
